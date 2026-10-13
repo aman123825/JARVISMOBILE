@@ -151,4 +151,33 @@ class AssistantCommandRouterTest {
         assertEquals(AssistantCommand.Help, AssistantCommandRouter.parse("what can you do"))
         assertTrue(AssistantCommandRouter.parse("open browser") is AssistantCommand.OpenApp)
     }
+
+    @Test
+    fun parsesCanonicalCommandsSuitableForModelNormalisation() {
+        val canonicalCommands = listOf(
+            "open WhatsApp",
+            "search the web for numerical methods",
+            "research online drought forecasting",
+            "navigate to IIT Bombay",
+            "set alarm for 7:30 am",
+            "timer for 10 minutes",
+            "remind me in 15 minutes to drink water",
+            "set volume to 35%",
+            "start deep focus for 30 minutes",
+            "clear distractions",
+            "what time is it",
+            "what is my battery",
+            "read notifications",
+            "summarize my notifications",
+            "remember that buy M3 screws",
+            "add task finish lab report",
+            "show tasks",
+            "open Wi-Fi settings",
+            "call +15555550101",
+            "text +15555550102 saying I will arrive soon"
+        )
+        canonicalCommands.forEach { command ->
+            assertTrue("Router did not recognise canonical command: $command", AssistantCommandRouter.parse(command) != null)
+        }
+    }
 }
