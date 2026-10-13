@@ -56,12 +56,6 @@ private val navItems = listOf(
         isSelected = { it == LocalCompanionKey }
     ),
     BottomNavItem(
-        key = HearingCompanionKey,
-        label = "Hear",
-        icon = "🦻",
-        isSelected = { it == HearingCompanionKey }
-    ),
-    BottomNavItem(
         key = SettingsKey,
         label = "Settings",
         icon = "⚙️",
