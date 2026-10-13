@@ -2,6 +2,7 @@ package com.mindfortress.app.ai
 
 import android.Manifest
 import android.app.AlarmManager
+import android.media.AudioManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -49,6 +50,27 @@ class AndroidAssistantActionExecutor(
             "Opening Clock to set a timer for ${formatDuration(command.durationSeconds)}. Confirm it in Clock.",
             "SET_TIMER"
         )
+        is AssistantCommand.EngageFocusMode -> {
+            val message = DeviceActionExecutor(context).activateDeepFocusLock(command.minutes)
+            result("Strict focus mode enabled for ${command.minutes} minutes. This blocks configured distractions; it does not lock Android's screen.", "FOCUS_LOCK_ENABLED")
+        }
+        AssistantCommand.ClearDistractions -> {
+            DeviceActionExecutor(context).purgePhoneDistractions()
+            result("Distraction shields are enabled using your saved blocker rules.", "DISTRACTION_SHIELD_ENABLED")
+        }
+        is AssistantCommand.SetVolume -> {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager == null) {
+                result("Android audio controls are unavailable.", "SET_VOLUME_FAILED")
+            } else {
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val target = (maxVolume * command.percent / 100f).toInt().coerceIn(0, maxVolume)
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
+                val actual = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val actualPercent = if (maxVolume > 0) (actual * 100f / maxVolume).toInt() else 0
+                result("Media volume set to about $actualPercent percent.", "SET_VOLUME")
+            }
+        }
         is AssistantCommand.DialNumber -> launch(
             Intent(Intent.ACTION_DIAL, Uri.parse("tel:${command.number}")),
             "Opening the dialer for ${command.number}. I will not place the call automatically.",
