@@ -105,6 +105,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- Locally scheduled, user-requested reminders -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+
         <!-- Focus Unlock Receiver to automatically deactivate shields when focus session expires -->
         <receiver
             android:name=".receiver.FocusUnlockReceiver"
