@@ -1,6 +1,8 @@
 package com.mindfortress.app.ui.screens
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +50,7 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager.getInstance(context) }
     val companionEngine = remember { LocalCompanionEngine(context) }
+    val localLlmRuntime = remember { companionEngine.localLlmRuntime }
     val voiceBiometric = remember { VoiceBiometricManager(context) }
     val voiceEngine = remember { NativeSovereignVoiceEngine(context) }
     val enrollmentMicOwner = remember { Any() }
@@ -75,6 +78,36 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
 
     var isListeningInApp by remember { mutableStateOf(false) }
     var speechHint by remember { mutableStateOf("") }
+    var importedModelPath by remember { mutableStateOf(localLlmRuntime.configuredModelPath) }
+    var isModelImporting by remember { mutableStateOf(false) }
+    var modelStatus by remember {
+        mutableStateOf(
+            if (localLlmRuntime.isModelConfigured) "Local model selected; it will load on the first open-ended question."
+            else "No local language model installed. Built-in commands and topic rules still work."
+        )
+    }
+
+    val modelPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isModelImporting = true
+                modelStatus = "Importing model into app-private storage. Large models can take a while."
+                try {
+                    val imported = localLlmRuntime.importModel(uri)
+                    importedModelPath = imported.absolutePath
+                    modelStatus = "Imported ${imported.name}. First response will load the model on CPU."
+                    Toast.makeText(context, "Local language model imported.", Toast.LENGTH_SHORT).show()
+                } catch (error: Throwable) {
+                    modelStatus = error.message ?: "Model import failed."
+                    Toast.makeText(context, modelStatus, Toast.LENGTH_LONG).show()
+                } finally {
+                    isModelImporting = false
+                }
+            }
+        }
+    }
 
     fun sendMessage(text: String) {
         val trimmed = text.trim()
@@ -432,6 +465,84 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            // Real on-device LLM is optional: the model file is selected and installed by the user.
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, FortressTeal.copy(alpha = 0.55f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🧠", fontSize = 19.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("On-device LLM", fontWeight = FontWeight.Bold, color = FortressTeal)
+                            Text(
+                                if (importedModelPath.isNotBlank()) importedModelPath.substringAfterLast('/') else "No .litertlm model selected",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        if (isModelImporting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                    Text(
+                        modelStatus,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = !isModelImporting,
+                            onClick = { modelPickerLauncher.launch(arrayOf("*/*")) }
+                        ) {
+                            Text(if (importedModelPath.isBlank()) "Import model" else "Replace model", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !isModelImporting && importedModelPath.isNotBlank(),
+                            onClick = {
+                                scope.launch {
+                                    isModelImporting = true
+                                    try {
+                                        localLlmRuntime.removeModel()
+                                        importedModelPath = ""
+                                        modelStatus = "Model removed. Built-in commands and local rules remain available."
+                                    } catch (error: Throwable) {
+                                        modelStatus = error.message ?: "Could not remove the model."
+                                    } finally {
+                                        isModelImporting = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Remove", fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://huggingface.co/litert-community")
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }.onFailure { modelStatus = "Couldn't open the model catalogue: ${it.message}" }
+                            }
+                        ) {
+                            Text("Models", fontSize = 12.sp)
+                        }
                     }
                 }
             }
