@@ -120,6 +120,26 @@ class AssistantCommandRouterTest {
     }
 
     @Test
+    fun parsesOptInNotificationCommands() {
+        assertEquals(
+            AssistantCommand.ListNotifications,
+            AssistantCommandRouter.parse("read my notifications")
+        )
+        assertEquals(
+            AssistantCommand.SummarizeNotifications,
+            AssistantCommandRouter.parse("summarize my notifications")
+        )
+        assertEquals(
+            AssistantCommand.ClearNotificationHistory,
+            AssistantCommandRouter.parse("clear notification history")
+        )
+        assertEquals(
+            AssistantCommand.OpenSettings("notifications"),
+            AssistantCommandRouter.parse("open notification access settings")
+        )
+    }
+
+    @Test
     fun helpListsSupportedToolset() {
         assertEquals(AssistantCommand.Help, AssistantCommandRouter.parse("what can you do"))
         assertTrue(AssistantCommandRouter.parse("open browser") is AssistantCommand.OpenApp)
