@@ -56,6 +56,12 @@ private val navItems = listOf(
         isSelected = { it == LocalCompanionKey }
     ),
     BottomNavItem(
+        key = HearingCompanionKey,
+        label = "Hear",
+        icon = "🦻",
+        isSelected = { it == HearingCompanionKey }
+    ),
+    BottomNavItem(
         key = SettingsKey,
         label = "Settings",
         icon = "⚙️",
@@ -135,6 +141,11 @@ fun MainNavigation(initialKey: NavKey = JarvisHudKey) {
             }
             entry<LocalCompanionKey> {
                 LocalCompanionScreen(
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<HearingCompanionKey> {
+                HearingCompanionScreen(
                     onBack = { backStack.removeLastOrNull() }
                 )
             }
