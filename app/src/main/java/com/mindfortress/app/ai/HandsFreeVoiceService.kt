@@ -106,7 +106,7 @@ class HandsFreeVoiceService : Service() {
                 "Jarvis Hands-Free Voice Listener",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Always-listening hands-free controller verifying registered voice"
+                description = "Visible notification for on-device wake-word listening"
             }
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
@@ -120,8 +120,8 @@ class HandsFreeVoiceService : Service() {
 
         val notification: Notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setContentTitle("Jarvis Hands-Free Guard Active")
-                .setContentText("Listening locally for 'Hey Jarvis' via Sherpa-ONNX. Zero cloud dependency.")
+                .setContentTitle("JARVIS Hands-Free Listening")
+                .setContentText("Listening locally for Hey Jarvis. Tap to open JARVIS or stop listening in the app.")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
