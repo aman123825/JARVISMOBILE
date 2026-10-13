@@ -22,9 +22,8 @@ class LocalPhraseCorrections(context: Context) {
             .sortedByDescending { it.key.length }
             .forEach { (source, replacement) ->
                 corrected = corrected.replace(
-                    Regex(Regex.escape(source), RegexOption.IGNORE_CASE),
-                    replacement
-                )
+                    Regex(Regex.escape(source), RegexOption.IGNORE_CASE)
+                ) { replacement }
             }
         return corrected
     }
