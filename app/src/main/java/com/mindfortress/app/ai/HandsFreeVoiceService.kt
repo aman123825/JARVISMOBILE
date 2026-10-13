@@ -90,9 +90,8 @@ class HandsFreeVoiceService : Service() {
     private fun stopListening() {
         commandCollectionJob?.cancel()
         commandCollectionJob = null
-        serviceScope.launch {
-            runCatching { voiceEngine.close() }
-        }
+        // Use the engine-owned scope; onDestroy cancels serviceScope immediately.
+        voiceEngine.closeAsync()
     }
 
     private fun startForegroundNotification() {
@@ -160,6 +159,10 @@ class HandsFreeVoiceService : Service() {
         private const val NOTIFICATION_ID = 2002
 
         fun start(context: Context) {
+            if (ForegroundVoiceSession.hasActiveUiSession()) {
+                Log.i(TAG, "Foreground JARVIS screen owns microphone; background listener start deferred.")
+                return
+            }
             val hasMic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             if (!hasMic) {
                 Log.w(TAG, "Cannot start HandsFreeVoiceService: RECORD_AUDIO permission not granted.")
