@@ -55,7 +55,11 @@ class HandsFreeVoiceService : Service() {
         }
 
         isDestroyedService = false
-        startForegroundNotification()
+        if (!startForegroundNotification()) {
+            Log.w(TAG, "Foreground microphone notification could not start; refusing background capture.")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startListening()
         return START_STICKY
     }
@@ -94,7 +98,7 @@ class HandsFreeVoiceService : Service() {
         voiceEngine.closeAsync()
     }
 
-    private fun startForegroundNotification() {
+    private fun startForegroundNotification(): Boolean {
         val channelId = "hands_free_jarvis_channel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -133,14 +137,16 @@ class HandsFreeVoiceService : Service() {
                 .build()
         }
 
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
+            true
         } catch (e: Exception) {
-            Log.w(TAG, "Hands-Free listener foreground start fallback: ${e.message}")
+            Log.w(TAG, "Hands-Free listener foreground start failed: ${e.message}")
+            false
         }
     }
 
