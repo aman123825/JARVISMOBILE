@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mindfortress.app.ai.AmbientAcousticSentinel
 import com.mindfortress.app.ai.AcousticEnvironment
+import com.mindfortress.app.ai.ForegroundVoiceSession
+import com.mindfortress.app.ai.HandsFreeVoiceService
 import com.mindfortress.app.ai.LocalCompanionEngine
 import com.mindfortress.app.ai.NativeSovereignVoiceEngine
 import com.mindfortress.app.data.PreferencesManager
@@ -58,6 +60,7 @@ fun JarvisMainHudScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager.getInstance(context) }
+    val foregroundVoiceSessionToken = remember { ForegroundVoiceSession.claimUiSession() }
     val companionEngine = remember { LocalCompanionEngine(context) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -141,8 +144,13 @@ fun JarvisMainHudScreen(
         }
     }
 
-    // 1. Preload Sherpa-ONNX Zipformer weights in background coroutine on launch
-    LaunchedEffect(Unit) {
+    // The foreground screen temporarily owns capture. Stop the background listener before
+    // starting another AudioRecord so Android audio input is never opened twice by JARVIS.
+    LaunchedEffect(voiceEngine) {
+        if (prefs.isHandsFreeVoiceActive) {
+            HandsFreeVoiceService.stop(context)
+            delay(450)
+        }
         voiceEngine.preloadModels()
         val hasMic = androidx.core.content.ContextCompat.checkSelfPermission(
             context,
@@ -150,6 +158,7 @@ fun JarvisMainHudScreen(
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (hasMic) {
             runCatching { voiceEngine.start() }
+                .onFailure { executionError = it.message ?: "Microphone could not be opened." }
         }
     }
 
@@ -190,12 +199,17 @@ fun JarvisMainHudScreen(
             android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (hasMic && prefs.isAcousticRadarActive) {
-            ambientSentinel.startSentinel()
+            // Ambient telemetry reuses the voice engine's level flow; only hardware sensors
+            // are registered here, so the sentinel does not open a competing AudioRecord.
+            ambientSentinel.startSensorMonitoring()
         }
         onDispose {
             ambientSentinel.stopSentinel()
-            scope.launch {
-                runCatching { voiceEngine.close() }
+            voiceEngine.closeAsync {
+                val ownsHandover = ForegroundVoiceSession.releaseUiSession(foregroundVoiceSessionToken)
+                if (ownsHandover && prefs.isHandsFreeVoiceActive) {
+                    HandsFreeVoiceService.start(context)
+                }
             }
         }
     }
