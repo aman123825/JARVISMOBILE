@@ -211,9 +211,17 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
                 Log.w(TAG, "AudioRecord did not initialize; ambient audio sampling disabled.")
             }
         } catch (e: SecurityException) {
+            runCatching { audioRecord?.stop() }
+            runCatching { audioRecord?.release() }
+            audioRecord = null
+            isRecording = false
             MicrophoneCaptureArbiter.release(this)
             Log.w(TAG, "Audio recording permission missing: ${e.message}")
         } catch (e: Throwable) {
+            runCatching { audioRecord?.stop() }
+            runCatching { audioRecord?.release() }
+            audioRecord = null
+            isRecording = false
             MicrophoneCaptureArbiter.release(this)
             Log.e(TAG, "Error starting Ambient Sentinel: ${e.message}")
         }
