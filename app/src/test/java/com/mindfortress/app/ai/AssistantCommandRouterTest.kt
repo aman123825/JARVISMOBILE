@@ -120,6 +120,13 @@ class AssistantCommandRouterTest {
     }
 
     @Test
+    fun parsesLocalDeviceStatusRequests() {
+        assertEquals(AssistantCommand.GetCurrentTime, AssistantCommandRouter.parse("what time is it"))
+        assertEquals(AssistantCommand.GetBatteryStatus, AssistantCommandRouter.parse("battery percentage"))
+        assertEquals(AssistantCommand.GetVolumeStatus, AssistantCommandRouter.parse("current volume"))
+    }
+
+    @Test
     fun parsesOptInNotificationCommands() {
         assertEquals(
             AssistantCommand.ListNotifications,
