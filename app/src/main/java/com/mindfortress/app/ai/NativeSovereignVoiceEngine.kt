@@ -493,16 +493,28 @@ class NativeSovereignVoiceEngine(context: Context) {
         _audioDb.value = db
 
         if (_listeningMode.value == ListeningMode.LIVE_CAPTIONS) {
-            // Hearing mode intentionally streams without a wake phrase. It is user-started,
-            // visible in the foreground UI, and never emits executable command events.
+            // Hearing mode is user-started and never emits command events. Keep a small
+            // rolling pre-buffer, and only start the larger ASR stream after VAD detects
+            // speech. Replaying the buffer avoids clipping the low-volume start of a phrase.
             if (!awake) {
+                preRoll.addLast(samples.copyOf())
+                while (preRoll.size > PRE_ROLL_FRAMES) preRoll.removeFirst()
+                if (!vadSpeaking) return
+
                 asrStream?.release()
                 asrStream = recognizer?.createStream() ?: return
                 awake = true
                 _partialTranscript.value = ""
-                _state.value = State.IDLE
+                _state.value = State.SPEECH_DETECTED
+                preRoll.forEach { bufferedFrame ->
+                    processAsrFrame(bufferedFrame, allowEndpoint = false)
+                }
+                preRoll.clear()
+            } else {
+                // Continue passing silence while an utterance is open so endpoint detection
+                // can finalize it after a natural pause.
+                processAsrFrame(samples, allowEndpoint = true)
             }
-            processAsrFrame(samples, allowEndpoint = true)
             return
         }
 
