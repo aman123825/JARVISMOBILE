@@ -26,6 +26,9 @@ sealed interface AssistantCommand {
     data class OpenSettings(val section: String) : AssistantCommand
     data class Remember(val text: String) : AssistantCommand
     data object ListMemories : AssistantCommand
+    data object ListNotifications : AssistantCommand
+    data object SummarizeNotifications : AssistantCommand
+    data object ClearNotificationHistory : AssistantCommand
     data class ForgetMemory(val query: String) : AssistantCommand
     data class AddTask(val text: String) : AssistantCommand
     data object ListTasks : AssistantCommand
@@ -96,6 +99,15 @@ object AssistantCommandRouter {
         if (text.isBlank()) return null
         val lower = text.lowercase(Locale.ROOT)
 
+        if (lower in setOf("read notifications", "read my notifications", "show notifications", "list notifications", "what did i miss", "what notifications did i get")) {
+            return AssistantCommand.ListNotifications
+        }
+        if (lower in setOf("summarize notifications", "summarize my notifications", "summarise my notifications", "notification summary")) {
+            return AssistantCommand.SummarizeNotifications
+        }
+        if (lower in setOf("clear notification history", "forget notification history", "delete captured notifications")) {
+            return AssistantCommand.ClearNotificationHistory
+        }
         if (lower in setOf("help", "what can you do", "what can jarvis do", "show commands", "list commands")) {
             return AssistantCommand.Help
         }
@@ -146,6 +158,7 @@ object AssistantCommandRouter {
                     "battery", "battery saver" -> "battery"
                     "accessibility" -> "accessibility"
                     "captions" -> "captions"
+                    "notification access", "notifications" -> "notifications"
                     "app settings", "installed apps" -> "apps"
                     "security", "privacy" -> "security"
                     else -> "general"
