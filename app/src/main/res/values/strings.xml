@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="accessibility_service_desc">JARVIS uses this sovereign accessibility service to guard your attention, terminate dopamine loops, and monitor screen perimeter 24/7.</string>
+    <string name="shield_notification_title">JARVIS Neural Defense Active</string>
+    <string name="shield_notification_text">Sovereign perimeter locked. Screen oversight and cognitive focus active.</string>
+</resources>
