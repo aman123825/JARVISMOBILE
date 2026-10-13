@@ -25,6 +25,13 @@ class LocalCompanionEngine(private val context: Context) {
     val localLlmRuntime = OnDeviceLlmRuntime(context)
     private val assistantMemory = AssistantMemoryStore(context)
 
+    // Avoid an extra model call for ordinary questions. The model only helps with utterances
+    // that look action-oriented; the typed router remains the final authority.
+    private val commandCandidatePattern = Regex(
+        """^\\s*(?:(?:hey|hi|okay|ok)\\s+)?(?:jarvis[, ]+)?(?:please\\s+|kindly\\s+)?(?:can you|could you|would you|would you mind|open|launch|bring up|pull up|start|set|create|wake me|timer|remind|take me|navigate|directions to|route to|research|find academic|find studies|literature review|search|google|look up online|volume|turn|make|lower|increase|decrease|clear|block|purge|read|summari[sz]e|list|show|check|what time|tell me the time|what is my battery|how much battery|remember|save|make a note|add task|to-?do|complete|finish|mark done|call|dial|text|sms|message|forget memory|remove the note|go to|enable|activate|monk mode|study mode)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+
     // Checks if a local LLM weight file exists in internal/external storage (e.g. gemma-2b.bin / model.bin)
     fun getLocalModelFile(): File? {
         return localLlmRuntime.configuredModelFile ?: sovereignBrain.getLocalGgufModel()
@@ -173,6 +180,28 @@ class LocalCompanionEngine(private val context: Context) {
                 executedAction = toolResult.actionTag,
                 suggestedPrompt = "What else should I do?"
             )
+        }
+
+        // 1b. For natural phrasing that missed the deterministic parser, ask the local model
+        // for a canonical command. The model cannot call tools directly: its output must pass
+        // AssistantCommandRouter.parse() before the existing typed executor can run it.
+        if (parsedCommand == null && localLlmRuntime.isModelConfigured && commandCandidatePattern.containsMatchIn(clean)) {
+            val modelCommand = try {
+                localLlmRuntime.classifyCommand(clean)
+            } catch (error: Throwable) {
+                Log.w("LocalCompanionEngine", "Local command normalisation failed; falling back to conversation", error)
+                null
+            }
+            if (modelCommand != null) {
+                val toolResult = commandExecutor.execute(modelCommand)
+                if (speakOutput && toolResult.speech.isNotBlank()) actionExecutor.speak(toolResult.speech)
+                return CompanionResponse(
+                    replyText = toolResult.reply,
+                    speechText = toolResult.speech,
+                    executedAction = toolResult.actionTag,
+                    suggestedPrompt = "What else should I do?"
+                )
+            }
         }
 
         // 2. Process via the existing on-device rules/knowledge brain.
