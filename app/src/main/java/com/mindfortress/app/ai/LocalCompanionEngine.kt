@@ -37,6 +37,59 @@ class LocalCompanionEngine(private val context: Context) {
         // 1. Run deterministic, typed device tools before general reasoning. These handlers
         // open Android-owned confirmation UIs for calls/messages/alarms and never silently send.
         val parsedCommand = AssistantCommandRouter.parse(clean)
+        if (parsedCommand is AssistantCommand.ResearchOnline) {
+            val researchResponse = try {
+                // An explicit online research request is allowed even in offline-only assistant mode.
+                val bundle = OnlineResearchService().search(parsedCommand.query)
+                val modelSummary = if (localLlmRuntime.isModelConfigured) {
+                    val researchPrompt = """
+                        Produce a critical, source-grounded research synthesis for: §{bundle.query}
+
+                        Use only claims supported by the sources below. Place citation markers such as [S1]
+                        directly after every claim based on a source. Separate consensus from disputed or
+                        weak evidence, identify limitations, and say what could not be established.
+                        Do not invent papers, numbers, quotations, dates, or citations. A source result list
+                        does not guarantee that each source is peer-reviewed.
+
+                        §{bundle.asPromptContext()}
+                    """.trimIndent()
+                    localLlmRuntime.generate(researchPrompt)
+                } else null
+
+                val sources = bundle.sources.mapIndexed { index, source ->
+                    "[S§{index + 1}] [§{source.title}](§{source.url})"
+                }.joinToString("\n")
+                val responseText = if (modelSummary.isNullOrBlank()) {
+                    bundle.renderMarkdown() +
+                        "\n\n### Next step\nImport a compatible .litertlm model in Chat for an on-device synthesis with citations."
+                } else {
+                    modelSummary + "\n\n## Sources\n\n" + sources
+                }
+                val speech = if (modelSummary.isNullOrBlank()) {
+                    "I found §{bundle.sources.size} sources and listed them in the answer. Import a local language model for an on-device synthesis."
+                } else {
+                    modelSummary.lines().firstOrNull { it.isNotBlank() && !it.startsWith("#") }
+                        ?.take(280) ?: "The research synthesis is ready."
+                }
+                CompanionResponse(
+                    replyText = responseText,
+                    speechText = speech,
+                    executedAction = "ONLINE_RESEARCH",
+                    suggestedPrompt = "Research another question or compare these sources"
+                )
+            } catch (error: Throwable) {
+                Log.w("LocalCompanionEngine", "Explicit online research failed", error)
+                CompanionResponse(
+                    replyText = "I couldn't complete online research: §{error.message ?: "the source services were unavailable"}. Try a narrower query or try again when connected.",
+                    speechText = "I couldn't complete that online search.",
+                    executedAction = "ONLINE_RESEARCH_FAILED",
+                    suggestedPrompt = "Try different search terms"
+                )
+            }
+            if (speakOutput && researchResponse.speechText.isNotBlank()) actionExecutor.speak(researchResponse.speechText)
+            return researchResponse
+        }
+
         if (parsedCommand != null) {
             val toolResult = commandExecutor.execute(parsedCommand)
             if (speakOutput && toolResult.speech.isNotBlank()) actionExecutor.speak(toolResult.speech)
