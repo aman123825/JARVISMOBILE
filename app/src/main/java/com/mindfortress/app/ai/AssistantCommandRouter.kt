@@ -162,7 +162,7 @@ object AssistantCommandRouter {
         Regex("""^(?:navigate to|directions to|route to|take me to|find route to)\s+(.+)$""", RegexOption.IGNORE_CASE)
             .find(text)?.let { return AssistantCommand.NavigateTo(it.groupValues[1].trim()) }
 
-        Regex("""^(?:research online|research and summarize online|find academic papers on|find studies on|literature review on)\\s+(.+)$""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:research online|research and summarize online|find academic papers on|find studies on|literature review on)\s+(.+)$""", RegexOption.IGNORE_CASE)
             .find(text)?.let { return AssistantCommand.ResearchOnline(it.groupValues[1].trim()) }
 
         Regex("""^(?:search(?: the)?(?: web| internet)?(?: for)?|google|look up online|find online)\s+(.+)$""", RegexOption.IGNORE_CASE)
