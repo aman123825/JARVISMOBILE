@@ -101,11 +101,12 @@ object AssistantCommandRouter {
         val text = normalize(input)
         if (text.isBlank()) return null
         val lower = text.lowercase(Locale.ROOT)
+        val commandKey = lower.trimEnd('.', '!', '?')
 
-        if (lower in setOf("what time is it", "tell me the time", "current time", "time now", "what is the time")) {
+        if (commandKey in setOf("what time is it", "tell me the time", "current time", "time now", "what is the time")) {
             return AssistantCommand.GetCurrentTime
         }
-        if (lower in setOf("battery status", "what is my battery", "what's my battery", "battery percentage", "how much battery is left", "check battery")) {
+        if (commandKey in setOf("battery status", "what is my battery", "what's my battery", "battery percentage", "how much battery is left", "check battery")) {
             return AssistantCommand.GetBatteryStatus
         }
         if (lower in setOf("volume status", "what is the volume", "current volume", "how loud is media volume")) {
@@ -133,9 +134,9 @@ object AssistantCommandRouter {
             return AssistantCommand.OpenSettings("general")
         }
 
-        if (clearDistractionsPattern.matches(text)) return AssistantCommand.ClearDistractions
+        if (clearDistractionsPattern.matches(commandKey)) return AssistantCommand.ClearDistractions
 
-        val focusMatch = focusPattern.find(text) ?: legacyFocusPattern.find(text)
+        val focusMatch = focusPattern.find(commandKey) ?: legacyFocusPattern.find(commandKey)
         if (focusMatch != null) {
             val amount = focusMatch.groupValues.getOrNull(1).orEmpty().toIntOrNull()
             val unit = focusMatch.groupValues.getOrNull(2).orEmpty().lowercase(Locale.ROOT)
@@ -148,7 +149,7 @@ object AssistantCommandRouter {
             return AssistantCommand.EngageFocusMode(minutes)
         }
 
-        volumePattern.find(text)?.let { match ->
+        volumePattern.find(commandKey)?.let { match ->
             val percent = match.groupValues[1].toIntOrNull() ?: return null
             if (percent !in 0..100) return null
             return AssistantCommand.SetVolume(percent)
@@ -157,7 +158,7 @@ object AssistantCommandRouter {
         val settingsMatch = Regex(
             """^(?:open|show|go to)\s+(?:the\s+)?(wi-?fi|wireless|bluetooth|sound|volume|display|screen|location|battery|battery saver|accessibility|captions|notification access|notifications|app settings|installed apps|security|privacy)\s+settings$""",
             RegexOption.IGNORE_CASE
-        ).find(text)
+        ).find(commandKey)
         if (settingsMatch != null) {
             val section = settingsMatch.groupValues[1].lowercase(Locale.ROOT)
             return AssistantCommand.OpenSettings(
@@ -251,7 +252,7 @@ object AssistantCommandRouter {
     private fun normalize(input: String): String = input.trim()
         .replace(Regex("""^(?:(?:hey|hi|okay|ok)\s+)?jarvis[,: ]+""", RegexOption.IGNORE_CASE), "")
         .trim()
-        .trimEnd('.', '!', '?')
+
 
     private fun durationSeconds(value: String, unit: String): Int? {
         val amount = value.toLongOrNull() ?: return null
