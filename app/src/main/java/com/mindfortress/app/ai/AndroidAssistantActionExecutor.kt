@@ -267,7 +267,7 @@ class AndroidAssistantActionExecutor(
 PHONE AND APPS
 - "Open WhatsApp" / "Open Camera" / "Open [app name]"
 - "Open Wi-Fi / Bluetooth / Sound / Display / Location / Accessibility / Captions settings"
-- "Set volume to 35%"
+- "Set volume to 35%" / "What time is it?" / "What is my battery?"
 - "Start deep focus for 90 minutes" / "Monk mode" / "Clear distractions"
 
 WEB AND RESEARCH
@@ -282,6 +282,10 @@ CLOCK AND COMMUNICATION
 - "Call +919876543210" opens the dialer; it does not place the call automatically
 - "Text +919876543210 saying I'm running late" opens a draft; you must tap Send
 - "Remind me in 20 minutes to stretch" schedules a local reminder (notifications required)
+
+NOTIFICATIONS (OPTIONAL PERMISSION)
+- "Read my notifications" / "Summarize my notifications" / "Clear notification history"
+- First enable JARVIS under Android Settings > Notification access. Captured text is held in memory only.
 
 PRIVATE ON-DEVICE MEMORY
 - "Remember that my project is called ShambaLens" / "What do you remember?"
