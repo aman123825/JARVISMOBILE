@@ -275,7 +275,61 @@ class HandsFreeVoiceService : Service() {
                     lower.contains("drill") ||
                     lower.contains("ambition") ||
                     lower.contains("shield status") ||
-                    lower.contains("how many blocked")
+                    lower.contains("how many blocked") ||
+                    lower.startsWith("set alarm") ||
+                    lower.startsWith("create alarm") ||
+                    lower.startsWith("wake me") ||
+                    lower.contains("timer for") ||
+                    lower.startsWith("timer ") ||
+                    lower.startsWith("remind me in") ||
+                    lower.startsWith("call ") ||
+                    lower.startsWith("dial ") ||
+                    lower.startsWith("phone ") ||
+                    lower.startsWith("text ") ||
+                    lower.startsWith("sms ") ||
+                    lower.startsWith("message ") ||
+                    lower.startsWith("search ") ||
+                    lower.startsWith("google ") ||
+                    lower.startsWith("look up online ") ||
+                    lower.startsWith("find online ") ||
+                    lower.startsWith("visit ") ||
+                    lower.startsWith("go to ") ||
+                    lower.startsWith("navigate to ") ||
+                    lower.startsWith("directions to ") ||
+                    lower.startsWith("route to ") ||
+                    lower.startsWith("take me to ") ||
+                    lower.startsWith("open settings") ||
+                    lower.startsWith("open wifi settings") ||
+                    lower.startsWith("open wi-fi settings") ||
+                    lower.startsWith("open bluetooth settings") ||
+                    lower.startsWith("open sound settings") ||
+                    lower.startsWith("open display settings") ||
+                    lower.startsWith("open location settings") ||
+                    lower.startsWith("open battery settings") ||
+                    lower.startsWith("open accessibility settings") ||
+                    lower.startsWith("remember ") ||
+                    lower.startsWith("note that ") ||
+                    lower.startsWith("save note ") ||
+                    lower.startsWith("make a note ") ||
+                    lower.startsWith("forget memory ") ||
+                    lower.startsWith("forget note ") ||
+                    lower.startsWith("add task ") ||
+                    lower.startsWith("create task ") ||
+                    lower.startsWith("to-do ") ||
+                    lower.startsWith("complete task ") ||
+                    lower.startsWith("finish task ") ||
+                    lower == "show tasks" ||
+                    lower == "list tasks" ||
+                    lower == "my tasks" ||
+                    lower == "what are my tasks" ||
+                    lower == "show memories" ||
+                    lower == "list memories" ||
+                    lower == "what do you remember" ||
+                    lower == "show my notes" ||
+                    lower == "list notes" ||
+                    lower == "help" ||
+                    lower == "what can you do" ||
+                    lower == "what can jarvis do"
 
             if (isDirectAction) {
                 return lower
