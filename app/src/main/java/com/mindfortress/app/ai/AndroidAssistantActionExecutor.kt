@@ -95,6 +95,10 @@ class AndroidAssistantActionExecutor(
             if (task != null) result("Marked task complete: \"${task.title}\"", "TASK_COMPLETED")
             else result("I couldn't find an open task matching \"${command.query}\".", "TASK_NOT_FOUND")
         }
+        is AssistantCommand.ResearchOnline -> result(
+            "Online research uses source retrieval and is handled by the research pipeline.",
+            "RESEARCH_ROUTE"
+        )
         AssistantCommand.Help -> help()
     }
 
