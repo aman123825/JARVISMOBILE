@@ -29,6 +29,9 @@ sealed interface AssistantCommand {
     data object ListNotifications : AssistantCommand
     data object SummarizeNotifications : AssistantCommand
     data object ClearNotificationHistory : AssistantCommand
+    data object GetCurrentTime : AssistantCommand
+    data object GetBatteryStatus : AssistantCommand
+    data object GetVolumeStatus : AssistantCommand
     data class ForgetMemory(val query: String) : AssistantCommand
     data class AddTask(val text: String) : AssistantCommand
     data object ListTasks : AssistantCommand
@@ -99,6 +102,15 @@ object AssistantCommandRouter {
         if (text.isBlank()) return null
         val lower = text.lowercase(Locale.ROOT)
 
+        if (lower in setOf("what time is it", "tell me the time", "current time", "time now", "what is the time")) {
+            return AssistantCommand.GetCurrentTime
+        }
+        if (lower in setOf("battery status", "what is my battery", "what's my battery", "battery percentage", "how much battery is left", "check battery")) {
+            return AssistantCommand.GetBatteryStatus
+        }
+        if (lower in setOf("volume status", "what is the volume", "current volume", "how loud is media volume")) {
+            return AssistantCommand.GetVolumeStatus
+        }
         if (lower in setOf("read notifications", "read my notifications", "show notifications", "list notifications", "what did i miss", "what notifications did i get")) {
             return AssistantCommand.ListNotifications
         }
