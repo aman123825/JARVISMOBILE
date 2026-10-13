@@ -329,7 +329,28 @@ class HandsFreeVoiceService : Service() {
                     lower == "list notes" ||
                     lower == "help" ||
                     lower == "what can you do" ||
-                    lower == "what can jarvis do"
+                    lower == "what can jarvis do" ||
+                    lower.startsWith("research online ") ||
+                    lower.startsWith("research and summarize online ") ||
+                    lower.startsWith("find academic papers on ") ||
+                    lower.startsWith("find studies on ") ||
+                    lower.startsWith("literature review on ") ||
+                    lower.startsWith("set volume ") ||
+                    lower.startsWith("volume ") ||
+                    lower.contains("deep focus") ||
+                    lower.contains("focus lock") ||
+                    lower == "clear distractions" ||
+                    lower == "stop distractions" ||
+                    lower == "read notifications" ||
+                    lower == "read my notifications" ||
+                    lower == "show notifications" ||
+                    lower == "list notifications" ||
+                    lower == "what did i miss" ||
+                    lower == "summarize notifications" ||
+                    lower == "summarize my notifications" ||
+                    lower == "summarise my notifications" ||
+                    lower == "notification summary" ||
+                    lower == "clear notification history"
 
             if (isDirectAction) {
                 return lower
