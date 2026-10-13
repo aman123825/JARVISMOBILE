@@ -55,11 +55,11 @@ object AssistantCommandRouter {
         RegexOption.IGNORE_CASE
     )
     private val focusPattern = Regex(
-        """^(?:(?:start|enable|activate)\\s+)?(?:deep focus|focus lock|monk mode|padhai shuru karo|study mode)(?:\\s+(?:for\\s+)?(\\d{1,4})\\s*(minutes?|mins?|hours?|hrs?))?$""",
+        """^(?:(?:start|enable|activate)\s+)?(?:deep focus|focus lock|monk mode|padhai shuru karo|study mode)(?:\s+(?:for\s+)?(\d{1,4})\s*(minutes?|mins?|hours?|hrs?))?$""",
         RegexOption.IGNORE_CASE
     )
     private val legacyFocusPattern = Regex(
-        """^lock (?:my )?phone(?:\\s+for\\s+(\\d{1,4})\\s*(minutes?|mins?|hours?|hrs?))?$""",
+        """^lock (?:(?:my|the)\s+)?phone(?:\s+for\s+(\d{1,4})\s*(minutes?|mins?|hours?|hrs?))?$""",
         RegexOption.IGNORE_CASE
     )
     private val clearDistractionsPattern = Regex(
@@ -67,7 +67,7 @@ object AssistantCommandRouter {
         RegexOption.IGNORE_CASE
     )
     private val volumePattern = Regex(
-        """^(?:set )?volume (?:to )?(\\d{1,3})\\s*%?$""",
+        """^(?:set )?volume (?:to )?(\d{1,3})\s*%?$""",
         RegexOption.IGNORE_CASE
     )
     private val dialPattern = Regex(
