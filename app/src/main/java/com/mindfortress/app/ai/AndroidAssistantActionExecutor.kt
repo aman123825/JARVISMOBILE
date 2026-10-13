@@ -174,10 +174,26 @@ class AndroidAssistantActionExecutor(
             "accessibility" -> Settings.ACTION_ACCESSIBILITY_SETTINGS
             "captions" -> Settings.ACTION_CAPTIONING_SETTINGS
             "apps" -> Settings.ACTION_APPLICATION_SETTINGS
+            "notifications" -> Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
             "security" -> Settings.ACTION_SECURITY_SETTINGS
             else -> Settings.ACTION_SETTINGS
         }
         return launch(Intent(action), "Opening ${section.replaceFirstChar { it.uppercase() }} settings.", "OPEN_SETTINGS")
+    }
+
+    private fun listNotifications(): AssistantToolResult {
+        if (!NotificationDigestStore.hasAccess(context)) {
+            return launch(
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                "Open Android Notification access settings and enable JARVIS notification reader. Then repeat 'read my notifications'.",
+                "NOTIFICATION_ACCESS_REQUIRED"
+            )
+        }
+        val content = NotificationDigestStore.renderLatest()
+        return result(
+            "Recent notifications captured in memory only:\\n\\n$content",
+            "LIST_NOTIFICATIONS"
+        )
     }
 
     private fun createReminder(command: AssistantCommand.CreateReminder): AssistantToolResult {
