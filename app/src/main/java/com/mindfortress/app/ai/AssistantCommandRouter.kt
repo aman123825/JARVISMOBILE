@@ -111,25 +111,25 @@ object AssistantCommandRouter {
         if (commandKey in setOf("volume status", "what is the volume", "current volume", "how loud is media volume")) {
             return AssistantCommand.GetVolumeStatus
         }
-        if (lower in setOf("read notifications", "read my notifications", "show notifications", "list notifications", "what did i miss", "what notifications did i get")) {
+        if (commandKey in setOf("read notifications", "read my notifications", "show notifications", "list notifications", "what did i miss", "what notifications did i get")) {
             return AssistantCommand.ListNotifications
         }
-        if (lower in setOf("summarize notifications", "summarize my notifications", "summarise my notifications", "notification summary")) {
+        if (commandKey in setOf("summarize notifications", "summarize my notifications", "summarise my notifications", "notification summary")) {
             return AssistantCommand.SummarizeNotifications
         }
-        if (lower in setOf("clear notification history", "forget notification history", "delete captured notifications")) {
+        if (commandKey in setOf("clear notification history", "forget notification history", "delete captured notifications")) {
             return AssistantCommand.ClearNotificationHistory
         }
-        if (lower in setOf("help", "what can you do", "what can jarvis do", "show commands", "list commands")) {
+        if (commandKey in setOf("help", "what can you do", "what can jarvis do", "show commands", "list commands")) {
             return AssistantCommand.Help
         }
-        if (lower in setOf("show tasks", "list tasks", "my tasks", "what are my tasks", "show my tasks", "list my tasks")) {
+        if (commandKey in setOf("show tasks", "list tasks", "my tasks", "what are my tasks", "show my tasks", "list my tasks")) {
             return AssistantCommand.ListTasks
         }
-        if (lower in setOf("show memories", "list memories", "what do you remember", "what do you remember about me", "show my notes", "list notes")) {
+        if (commandKey in setOf("show memories", "list memories", "what do you remember", "what do you remember about me", "show my notes", "list notes")) {
             return AssistantCommand.ListMemories
         }
-        if (lower in setOf("open settings", "system settings", "phone settings", "settings")) {
+        if (commandKey in setOf("open settings", "system settings", "phone settings", "settings")) {
             return AssistantCommand.OpenSettings("general")
         }
 
