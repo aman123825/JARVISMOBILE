@@ -27,6 +27,12 @@ Sovereign Offline Mode gates assistant requests in LocalCompanionEngine; it does
 
 A local language model is still required for open-ended language reasoning. Streaming ASR model files are not an LLM and do not by themselves provide frontier-level reasoning. If no compatible GGUF model is present, the existing on-device rules/knowledge fallback remains limited.
 
+## Owner identity and background listening
+
+The wake phrase is not speaker identity. The existing voice-biometric enrollment screen is not currently wired into the streaming engine's command authorization path, so this change does **not** guarantee that only one enrolled person can issue commands. Do not treat the voice template as a secure authentication factor; use Android device authentication or explicit confirmation for sensitive actions. A future owner-only mode needs a validated speaker-embedding model, liveness/anti-replay testing, and fail-closed action gating before it can be described as identity-secure.
+
+On recent Android versions, microphone use must be started while the app is allowed to access the microphone and must remain visible through a microphone foreground-service notification for sustained background use. The boot receiver therefore does not start microphone capture directly after reboot; open JARVIS or enable hands-free listening from its visible UI to resume it. This is an OS permission boundary, not something a wake-word model can override.
+
 ## Manual acceptance checklist
 
 1. Build and run on API 36 and Android 14/15 if supported by the project's target-device matrix.
