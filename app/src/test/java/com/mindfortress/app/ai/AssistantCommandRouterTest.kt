@@ -95,6 +95,31 @@ class AssistantCommandRouterTest {
     }
 
     @Test
+    fun parsesFocusVolumeAndExplicitResearchCommands() {
+        assertEquals(
+            AssistantCommand.EngageFocusMode(90),
+            AssistantCommandRouter.parse("Hey Jarvis, start deep focus for 90 minutes")
+        )
+        assertEquals(
+            AssistantCommand.EngageFocusMode(60),
+            AssistantCommandRouter.parse("lock my phone")
+        )
+        assertEquals(
+            AssistantCommand.ClearDistractions,
+            AssistantCommandRouter.parse("clear distractions")
+        )
+        assertEquals(
+            AssistantCommand.SetVolume(35),
+            AssistantCommandRouter.parse("set volume to 35%")
+        )
+        assertEquals(
+            AssistantCommand.ResearchOnline("edge AI for crop disease detection"),
+            AssistantCommandRouter.parse("research online edge AI for crop disease detection")
+        )
+        assertNull(AssistantCommandRouter.parse("research papers are difficult to read"))
+    }
+
+    @Test
     fun helpListsSupportedToolset() {
         assertEquals(AssistantCommand.Help, AssistantCommandRouter.parse("what can you do"))
         assertTrue(AssistantCommandRouter.parse("open browser") is AssistantCommand.OpenApp)
