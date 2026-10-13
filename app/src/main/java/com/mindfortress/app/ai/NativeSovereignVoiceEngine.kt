@@ -271,11 +271,14 @@ class NativeSovereignVoiceEngine(context: Context) {
      * engine-owned scope, so a caller's UI/service scope can be cancelled independently.
      */
     fun closeAsync(onClosed: (() -> Unit)? = null) {
-        scope.launch {
+        // Use a separate scope because close() cancels the engine scope as its final step.
+        val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        shutdownScope.launch {
             try {
                 close()
             } finally {
-                onClosed?.invoke()
+                runCatching { onClosed?.invoke() }
+                shutdownScope.cancel()
             }
         }
     }
