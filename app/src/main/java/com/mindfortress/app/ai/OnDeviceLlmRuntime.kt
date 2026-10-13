@@ -191,7 +191,7 @@ class OnDeviceLlmRuntime(context: Context) {
             val classifierConversation = engine!!.createConversation(
                 ConversationConfig(
                     systemInstruction = Contents.of(COMMAND_CLASSIFIER_INSTRUCTION),
-                    samplerConfig = SamplerConfig(topK = 8, topP = 0.8, temperature = 0.0)
+                    samplerConfig = SamplerConfig(topK = 8, topP = 0.8, temperature = 0.1)
                 )
             )
             try {
