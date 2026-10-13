@@ -43,7 +43,7 @@ class LocalCompanionEngine(private val context: Context) {
                 val bundle = OnlineResearchService().search(parsedCommand.query)
                 val modelSummary = if (localLlmRuntime.isModelConfigured) {
                     val researchPrompt = """
-                        Produce a critical, source-grounded research synthesis for: §{bundle.query}
+                        Produce a critical, source-grounded research synthesis for: ${bundle.query}
 
                         Use only claims supported by the sources below. Place citation markers such as [S1]
                         directly after every claim based on a source. Separate consensus from disputed or
@@ -51,13 +51,13 @@ class LocalCompanionEngine(private val context: Context) {
                         Do not invent papers, numbers, quotations, dates, or citations. A source result list
                         does not guarantee that each source is peer-reviewed.
 
-                        §{bundle.asPromptContext()}
+                        ${bundle.asPromptContext()}
                     """.trimIndent()
                     localLlmRuntime.generate(researchPrompt)
                 } else null
 
                 val sources = bundle.sources.mapIndexed { index, source ->
-                    "[S§{index + 1}] [§{source.title}](§{source.url})"
+                    "[S${index + 1}] [${source.title}](${source.url})"
                 }.joinToString("\n")
                 val responseText = if (modelSummary.isNullOrBlank()) {
                     bundle.renderMarkdown() +
@@ -66,7 +66,7 @@ class LocalCompanionEngine(private val context: Context) {
                     modelSummary + "\n\n## Sources\n\n" + sources
                 }
                 val speech = if (modelSummary.isNullOrBlank()) {
-                    "I found §{bundle.sources.size} sources and listed them in the answer. Import a local language model for an on-device synthesis."
+                    "I found ${bundle.sources.size} sources and listed them in the answer. Import a local language model for an on-device synthesis."
                 } else {
                     modelSummary.lines().firstOrNull { it.isNotBlank() && !it.startsWith("#") }
                         ?.take(280) ?: "The research synthesis is ready."
@@ -80,7 +80,7 @@ class LocalCompanionEngine(private val context: Context) {
             } catch (error: Throwable) {
                 Log.w("LocalCompanionEngine", "Explicit online research failed", error)
                 CompanionResponse(
-                    replyText = "I couldn't complete online research: §{error.message ?: "the source services were unavailable"}. Try a narrower query or try again when connected.",
+                    replyText = "I couldn't complete online research: ${error.message ?: "the source services were unavailable"}. Try a narrower query or try again when connected.",
                     speechText = "I couldn't complete that online search.",
                     executedAction = "ONLINE_RESEARCH_FAILED",
                     suggestedPrompt = "Try different search terms"
