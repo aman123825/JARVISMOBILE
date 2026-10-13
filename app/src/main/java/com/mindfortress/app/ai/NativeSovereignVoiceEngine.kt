@@ -266,6 +266,20 @@ class NativeSovereignVoiceEngine(context: Context) {
     }
 
 
+    /**
+     * Disposal-safe shutdown for Compose/service lifecycles. The closure runs on the
+     * engine-owned scope, so a caller's UI/service scope can be cancelled independently.
+     */
+    fun closeAsync(onClosed: (() -> Unit)? = null) {
+        scope.launch {
+            try {
+                close()
+            } finally {
+                onClosed?.invoke()
+            }
+        }
+    }
+
     /** Stops capture and releases all native model handles. Safe to call more than once. */
     suspend fun close() = lifecycleMutex.withLock {
         if (closed) return@withLock
