@@ -193,11 +193,8 @@ For other requests, the local rule/knowledge engine responds when it recognizes 
 
     private fun launch(intent: Intent, message: String, tag: String): AssistantToolResult = try {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (intent.resolveActivity(context.packageManager) == null) result("No app is available for that action on this device.", "${tag}_UNAVAILABLE")
-        else {
-            context.startActivity(intent)
-            result(message, tag)
-        }
+        context.startActivity(intent)
+        result(message, tag)
     } catch (e: ActivityNotFoundException) {
         result("No app is available for that action on this device.", "${tag}_UNAVAILABLE")
     } catch (e: Exception) {
