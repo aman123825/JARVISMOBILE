@@ -82,7 +82,7 @@ class AssistantMemoryStore(context: Context) {
 
     private fun writeStrings(key: String, values: List<String>) {
         val array = JSONArray()
-        values.takeLast(MAX_ENTRIES).forEach(array::put)
+        values.takeLast(MAX_ENTRIES).forEach { value -> array.put(value) }
         preferences.edit().putString(key, array.toString()).apply()
     }
 
