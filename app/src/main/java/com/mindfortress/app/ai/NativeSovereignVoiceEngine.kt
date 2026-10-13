@@ -586,6 +586,9 @@ class NativeSovereignVoiceEngine(context: Context) {
             if (caption.isNotBlank()) {
                 _finalTranscript.value = caption
                 _captionEvents.tryEmit(caption)
+                _state.value = State.UTTERANCE_COMPLETE
+            } else {
+                _state.value = State.IDLE
             }
             awake = false
             preRoll.clear()
