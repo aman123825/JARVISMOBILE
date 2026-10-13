@@ -7,14 +7,19 @@ import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.SystemClock
 import android.provider.AlarmClock
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.mindfortress.app.ReminderReceiver
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class AssistantToolResult(val reply: String, val speech: String = reply, val actionTag: String)
 
@@ -69,6 +74,33 @@ class AndroidAssistantActionExecutor(
                 val actual = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                 val actualPercent = if (maxVolume > 0) (actual * 100f / maxVolume).toInt() else 0
                 result("Media volume set to about $actualPercent percent.", "SET_VOLUME")
+            }
+        }
+        AssistantCommand.GetCurrentTime -> {
+            val now = SimpleDateFormat("EEEE, d MMMM yyyy, h:mm a", Locale.getDefault()).format(Date())
+            result("The device's local time is $now.", "CURRENT_TIME")
+        }
+        AssistantCommand.GetBatteryStatus -> {
+            val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            val percent = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+            val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            if (percent in 0..100) {
+                result("Battery is at $percent percent" + if (charging) " and charging." else ".", "BATTERY_STATUS")
+            } else {
+                result("I couldn't read the battery percentage from Android.", "BATTERY_STATUS_UNAVAILABLE")
+            }
+        }
+        AssistantCommand.GetVolumeStatus -> {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager == null) {
+                result("Android audio controls are unavailable.", "VOLUME_STATUS_FAILED")
+            } else {
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                val percent = if (maxVolume > 0) (current * 100f / maxVolume).toInt() else 0
+                result("Media volume is about $percent percent.", "VOLUME_STATUS")
             }
         }
         is AssistantCommand.DialNumber -> launch(
