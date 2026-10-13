@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.mindfortress.app.ai.ForegroundVoiceSession
 import com.mindfortress.app.ai.HandsFreeVoiceService
 import com.mindfortress.app.ai.NativeSovereignVoiceEngine
 import com.mindfortress.app.data.PreferencesManager
@@ -71,6 +72,7 @@ fun HearingCompanionScreen(onBack: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val engine = remember { NativeSovereignVoiceEngine(context) }
     val preferences = remember { PreferencesManager.getInstance(context) }
+    val foregroundVoiceSessionToken = remember { ForegroundVoiceSession.claimUiSession() }
     val restoreHandsFree = remember { preferences.isHandsFreeVoiceActive }
 
     val partial by engine.partialTranscript.collectAsState()
@@ -141,7 +143,8 @@ fun HearingCompanionScreen(onBack: () -> Unit = {}) {
     DisposableEffect(engine) {
         onDispose {
             engine.closeAsync {
-                if (restoreHandsFree) HandsFreeVoiceService.start(context)
+                val ownsHandover = ForegroundVoiceSession.releaseUiSession(foregroundVoiceSessionToken)
+                if (ownsHandover && restoreHandsFree) HandsFreeVoiceService.start(context)
             }
         }
     }
