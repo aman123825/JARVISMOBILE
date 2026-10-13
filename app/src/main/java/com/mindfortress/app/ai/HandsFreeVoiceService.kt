@@ -350,7 +350,22 @@ class HandsFreeVoiceService : Service() {
                     lower == "summarize my notifications" ||
                     lower == "summarise my notifications" ||
                     lower == "notification summary" ||
-                    lower == "clear notification history"
+                    lower == "clear notification history" ||
+                    lower == "what time is it" ||
+                    lower == "tell me the time" ||
+                    lower == "current time" ||
+                    lower == "time now" ||
+                    lower == "what is the time" ||
+                    lower == "battery status" ||
+                    lower == "what is my battery" ||
+                    lower == "what's my battery" ||
+                    lower == "battery percentage" ||
+                    lower == "how much battery is left" ||
+                    lower == "check battery" ||
+                    lower == "volume status" ||
+                    lower == "what is the volume" ||
+                    lower == "current volume" ||
+                    lower == "how loud is media volume"
 
             if (isDirectAction) {
                 return lower
