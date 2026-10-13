@@ -45,6 +45,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
     var isPinging by remember { mutableStateOf(false) }
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     val providers = listOf("PC_BRAIN", "OPENAI", "ANTHROPIC", "GROQ", "GEMINI")
+    var sovereignOfflineMode by remember { mutableStateOf(prefs.isSovereignOfflineMode) }
 
     // Circadian Bio-Clock State
     var sleepTime by remember { mutableStateOf(prefs.targetSleepTime) }
@@ -121,6 +122,62 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item { Spacer(modifier = Modifier.height(8.dp)) }
+
+            // On-device mode is the default. Turning it off explicitly permits LAN/cloud reasoning.
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = CyberCardSurface),
+                    border = BorderStroke(
+                        1.dp,
+                        if (sovereignOfflineMode) ArcReactorCyan else QuantumAmber
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                "Sovereign Offline Mode",
+                                fontWeight = FontWeight.Bold,
+                                color = if (sovereignOfflineMode) ArcReactorCyan else QuantumAmber
+                            )
+                            Text(
+                                if (sovereignOfflineMode) {
+                                    "ON · Assistant reasoning stays on-device; cloud and LAN routes are skipped."
+                                } else {
+                                    "OFF · The configured cloud provider or local-network brain may receive prompts."
+                                },
+                                color = NeutralTextMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "Install a compatible local language model for stronger offline answers.",
+                                color = NeutralTextMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Switch(
+                            checked = sovereignOfflineMode,
+                            onCheckedChange = { enabled ->
+                                sovereignOfflineMode = enabled
+                                prefs.isSovereignOfflineMode = enabled
+                                Toast.makeText(
+                                    context,
+                                    if (enabled) "Offline-only assistant mode enabled" else "Remote reasoning routes enabled",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+                }
+            }
 
             // 1. NEURAL UPLINK CARD
             item {
