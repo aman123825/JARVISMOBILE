@@ -143,7 +143,7 @@ object AssistantCommandRouter {
         }
 
         val settingsMatch = Regex(
-            """^(?:open|show|go to)\s+(?:the\s+)?(wi-?fi|wireless|bluetooth|sound|volume|display|screen|location|battery|battery saver|accessibility|captions|app settings|installed apps|security|privacy)\s+settings$""",
+            """^(?:open|show|go to)\s+(?:the\s+)?(wi-?fi|wireless|bluetooth|sound|volume|display|screen|location|battery|battery saver|accessibility|captions|notification access|notifications|app settings|installed apps|security|privacy)\s+settings$""",
             RegexOption.IGNORE_CASE
         ).find(text)
         if (settingsMatch != null) {
