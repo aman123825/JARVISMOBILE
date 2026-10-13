@@ -170,7 +170,7 @@ object AssistantCommandRouter {
             return AssistantCommand.OpenWebsite(url)
         }
 
-        Regex("""^(?:open|launch|start|run)\s+(?:the\s+)?(?:app\s+)?(.+)$""", RegexOption.IGNORE_CASE)
+        Regex("""^(?:open|launch)\s+(?:the\s+)?(?:app\s+)?(.+)$""", RegexOption.IGNORE_CASE)
             .find(text)?.let { match ->
                 val name = match.groupValues[1].trim()
                 if (name.isNotBlank() && name != "settings") return AssistantCommand.OpenApp(name)
