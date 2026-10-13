@@ -13,6 +13,16 @@
 - Adds a Sovereign Offline Mode setting, enabled by default, that prevents LocalCompanionEngine's assistant reasoning path from using the configured cloud API or LAN brain. Turning it off explicitly re-enables those routes.
 - Adds a GitHub Actions workflow for JVM unit tests and debug APK assembly.
 
+## Command system and local language model
+
+The command layer is deterministic and typed; it does not ask a generative model to directly launch arbitrary actions. Supported commands include installed-app launch, browser search, opening a website, maps navigation, Clock alarm/timer intents, media-volume changes, strict focus mode/distraction shields, system Settings screens, dialer launch, SMS draft creation, local reminders, private notes/memories, and a persistent task list. Calling a number opens the dialer; an SMS request opens an editable draft. JARVIS does not silently place calls or send messages.
+
+**Open-ended reasoning uses LiteRT-LM only when the user imports a compatible `.litertlm` model.** The model is copied to app-private storage and is run through the LiteRT-LM Kotlin runtime. No LLM weights are bundled in this PR and there is no automatic model download. Choose a model small enough for the target phone's available RAM/storage and compatible with the current LiteRT-LM release. The default backend is CPU for compatibility; measure warm-up time, tokens/second, RAM, thermal load and battery before enabling acceleration. The existing Sherpa ONNX speech models do not supply general-purpose language reasoning.
+
+The explicit command **`research online [topic]`** calls Wikipedia's search API and OpenAlex's scholarly-works API. These are discovery sources, not exhaustive Google results; abstracts may be unavailable and results require manual quality checks. When a compatible local LLM is installed, the retrieved sources are supplied for a synthesis that must cite [S1], [S2], etc. Even with Sovereign Offline Mode ON, this explicit online research command uses the internet by design. The ordinary **`search the web for [topic]`** command instead opens browser results.
+
+This feature does not make a model smarter than every researcher. Results still depend on the model family/size, prompt context, available source material, and validation by the user. A useful “research assistant” workflow should combine source discovery, citation-grounded synthesis, first-principles explanation, calculations/tests, and independent review.
+
 ## Hearing support notes
 
 This feature is a visual speech-access aid, not a medical device, clinical treatment, or replacement for prescribed hearing aids. Transcription can be wrong, especially in noise, with overlapping speakers, low-volume speech, accents, or specialized vocabulary. Check important names, numbers, instructions, safety announcements, and academic details with the speaker or another trusted source.
@@ -25,7 +35,7 @@ Live caption mode is started explicitly by the user. It requires the microphone 
 
 Sovereign Offline Mode gates assistant requests in LocalCompanionEngine; it does not remove the app's Android INTERNET permission or prove the entire application never makes network requests. Other app areas, such as explicitly configured connectivity tools or settings diagnostics, may still use networking. For a strict zero-network build, audit every network entry point, remove unneeded INTERNET permission/dependencies, and verify with Android's network security tooling before claiming the whole package is air-gapped.
 
-A local language model is still required for open-ended language reasoning. Streaming ASR model files are not an LLM and do not by themselves provide frontier-level reasoning. If no compatible GGUF model is present, the existing on-device rules/knowledge fallback remains limited.
+A local language model is still required for open-ended language reasoning. Streaming ASR model files are not an LLM and do not by themselves provide frontier-level reasoning. If no compatible LiteRT-LM model is installed, the existing on-device rules/knowledge fallback remains limited. Legacy GGUF/BIN file detection remains for compatibility but is not the new LiteRT-LM inference runtime.
 
 ## Owner identity and background listening
 
