@@ -17,6 +17,7 @@ sealed interface AssistantCommand {
     data class SetTimer(val durationSeconds: Int, val label: String) : AssistantCommand
     data class DialNumber(val number: String) : AssistantCommand
     data class ComposeSms(val number: String, val body: String) : AssistantCommand
+    data class CreateReminder(val delaySeconds: Int, val message: String) : AssistantCommand
     data class NavigateTo(val destination: String) : AssistantCommand
     data class OpenSettings(val section: String) : AssistantCommand
     data class Remember(val text: String) : AssistantCommand
@@ -73,17 +74,18 @@ object AssistantCommandRouter {
     fun parse(input: String): AssistantCommand? {
         val text = normalize(input)
         if (text.isBlank()) return null
+        val lower = text.lowercase(Locale.ROOT)
 
-        if (text in setOf("help", "what can you do", "what can jarvis do", "show commands", "list commands")) {
+        if (lower in setOf("help", "what can you do", "what can jarvis do", "show commands", "list commands")) {
             return AssistantCommand.Help
         }
-        if (text in setOf("show tasks", "list tasks", "my tasks", "what are my tasks", "show my tasks", "list my tasks")) {
+        if (lower in setOf("show tasks", "list tasks", "my tasks", "what are my tasks", "show my tasks", "list my tasks")) {
             return AssistantCommand.ListTasks
         }
-        if (text in setOf("show memories", "list memories", "what do you remember", "what do you remember about me", "show my notes", "list notes")) {
+        if (lower in setOf("show memories", "list memories", "what do you remember", "what do you remember about me", "show my notes", "list notes")) {
             return AssistantCommand.ListMemories
         }
-        if (text in setOf("open settings", "system settings", "phone settings", "settings")) {
+        if (lower in setOf("open settings", "system settings", "phone settings", "settings")) {
             return AssistantCommand.OpenSettings("general")
         }
 
@@ -119,9 +121,7 @@ object AssistantCommandRouter {
 
         reminderDurationPattern.find(text)?.let { match ->
             val seconds = durationSeconds(match.groupValues[1], match.groupValues[2]) ?: return null
-            return AssistantCommand.AddTask(
-                "Reminder in ${seconds} seconds: ${match.groupValues[3].trim()}"
-            )
+            return AssistantCommand.CreateReminder(seconds, match.groupValues[3].trim())
         }
 
         val alarmMatch = alarmPattern.find(text) ?: wakePattern.find(text)
@@ -183,7 +183,6 @@ object AssistantCommandRouter {
         .replace(Regex("""^(?:(?:hey|hi|okay|ok)\s+)?jarvis[,: ]+""", RegexOption.IGNORE_CASE), "")
         .trim()
         .trimEnd('.', '!', '?')
-        .lowercase(Locale.ROOT)
 
     private fun durationSeconds(value: String, unit: String): Int? {
         val amount = value.toLongOrNull() ?: return null
