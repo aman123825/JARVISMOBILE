@@ -97,6 +97,12 @@ class AndroidAssistantActionExecutor(
             if (items.isEmpty()) result("Your JARVIS memory is empty. Say 'remember that …' to save a detail on this device.", "MEMORY_EMPTY")
             else result("What I remember:\n" + items.mapIndexed { i, v -> "${i + 1}. $v" }.joinToString("\n"), "MEMORY_LIST")
         }
+        AssistantCommand.ListNotifications -> listNotifications()
+        AssistantCommand.SummarizeNotifications -> listNotifications()
+        AssistantCommand.ClearNotificationHistory -> {
+            NotificationDigestStore.clear()
+            result("Cleared JARVIS's in-memory notification history.", "NOTIFICATION_HISTORY_CLEARED")
+        }
         is AssistantCommand.ForgetMemory -> {
             val removed = memory.forget(command.query)
             if (removed > 0) result("Removed $removed matching memory item(s) from this device.", "MEMORY_FORGOTTEN")
