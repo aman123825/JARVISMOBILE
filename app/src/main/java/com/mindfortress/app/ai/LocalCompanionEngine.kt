@@ -20,6 +20,7 @@ class LocalCompanionEngine(private val context: Context) {
     val actionExecutor = DeviceActionExecutor(context)
     val sovereignBrain = OnDeviceSovereignBrain(context)
     private val prefs = PreferencesManager.getInstance(context)
+    private val commandExecutor = AndroidAssistantActionExecutor(context)
 
     // Checks if a local LLM weight file exists in internal/external storage (e.g. gemma-2b.bin / model.bin)
     fun getLocalModelFile(): File? {
@@ -30,7 +31,21 @@ class LocalCompanionEngine(private val context: Context) {
         val clean = userInput.trim()
         val lower = clean.lowercase()
 
-        // 1. Process via On-Device Sovereign Brain First (100% Local, 0ms Network Dependency)
+        // 1. Run deterministic, typed device tools before general reasoning. These handlers
+        // open Android-owned confirmation UIs for calls/messages/alarms and never silently send.
+        val parsedCommand = AssistantCommandRouter.parse(clean)
+        if (parsedCommand != null) {
+            val toolResult = commandExecutor.execute(parsedCommand)
+            if (speakOutput && toolResult.speech.isNotBlank()) actionExecutor.speak(toolResult.speech)
+            return CompanionResponse(
+                replyText = toolResult.reply,
+                speechText = toolResult.speech,
+                executedAction = toolResult.actionTag,
+                suggestedPrompt = "What else should I do?"
+            )
+        }
+
+        // 2. Process via the existing on-device rules/knowledge brain.
         val sovereignResult = sovereignBrain.processSovereignInput(clean)
         if (sovereignResult.actionTag != null && sovereignResult.actionTag != "SOVEREIGN_STANDBY") {
             if (speakOutput && sovereignResult.speechText.isNotEmpty()) {
