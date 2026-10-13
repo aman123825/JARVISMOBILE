@@ -51,7 +51,7 @@ class AndroidAssistantActionExecutor(
             "SET_TIMER"
         )
         is AssistantCommand.EngageFocusMode -> {
-            val message = DeviceActionExecutor(context).activateDeepFocusLock(command.minutes)
+            DeviceActionExecutor(context).activateDeepFocusLock(command.minutes)
             result("Strict focus mode enabled for ${command.minutes} minutes. This blocks configured distractions; it does not lock Android's screen.", "FOCUS_LOCK_ENABLED")
         }
         AssistantCommand.ClearDistractions -> {
@@ -208,12 +208,34 @@ class AndroidAssistantActionExecutor(
     }
 
     private fun help() = result(
-        """JARVIS can execute these local commands:
-Open/launch an installed app; search the web; open a website; navigate to a place;
-set an alarm or timer; call a number by opening the dialer; draft an SMS for your review;
-open Wi-Fi, Bluetooth, sound, display, location, battery, accessibility or caption settings;
-create local reminders; remember and forget notes; add/list/complete tasks.
-For other requests, the local rule/knowledge engine responds when it recognizes the topic.""".trimIndent(),
+        """JARVIS command toolbox:
+
+PHONE AND APPS
+- "Open WhatsApp" / "Open Camera" / "Open [app name]"
+- "Open Wi-Fi / Bluetooth / Sound / Display / Location / Accessibility / Captions settings"
+- "Set volume to 35%"
+- "Start deep focus for 90 minutes" / "Monk mode" / "Clear distractions"
+
+WEB AND RESEARCH
+- "Search the web for [query]" opens web results in your browser
+- "Open example.com"
+- "Navigate to [place]"
+- "Research online [topic]" retrieves Wikipedia background and OpenAlex scholarly discovery results.
+  Import a compatible local language model for an on-device source-grounded synthesis.
+
+CLOCK AND COMMUNICATION
+- "Set an alarm for 7:30 am" / "Set a timer for 10 minutes"
+- "Call +919876543210" opens the dialer; it does not place the call automatically
+- "Text +919876543210 saying I'm running late" opens a draft; you must tap Send
+- "Remind me in 20 minutes to stretch" schedules a local reminder (notifications required)
+
+PRIVATE ON-DEVICE MEMORY
+- "Remember that my project is called ShambaLens" / "What do you remember?"
+- "Forget memory about ShambaLens"
+- "Add task finish the lab report" / "Show tasks" / "Complete task lab report"
+
+Open-ended questions use an installed LiteRT-LM model when present. Without one, the built-in
+rules and topic answers are limited. Online research is a separate, explicit internet request.""".trimIndent(),
         "COMMAND_HELP"
     )
 
