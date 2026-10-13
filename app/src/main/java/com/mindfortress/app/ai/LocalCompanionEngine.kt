@@ -28,7 +28,7 @@ class LocalCompanionEngine(private val context: Context) {
     // Avoid an extra model call for ordinary questions. The model only helps with utterances
     // that look action-oriented; the typed router remains the final authority.
     private val commandCandidatePattern = Regex(
-        """^\\s*(?:(?:hey|hi|okay|ok)\\s+)?(?:jarvis[, ]+)?(?:please\\s+|kindly\\s+)?(?:can you|could you|would you|would you mind|open|launch|bring up|pull up|start|set|create|wake me|timer|remind|take me|navigate|directions to|route to|research|find academic|find studies|literature review|search|google|look up online|volume|turn|make|lower|increase|decrease|clear|block|purge|read|summari[sz]e|list|show|check|what time|tell me the time|what is my battery|how much battery|remember|save|make a note|add task|to-?do|complete|finish|mark done|call|dial|text|sms|message|forget memory|remove the note|go to|enable|activate|monk mode|study mode)\\b""",
+        """^\s*(?:(?:hey|hi|okay|ok)\s+)?(?:jarvis[, ]+)?(?:please\s+|kindly\s+)?(?:can you|could you|would you|would you mind|open|launch|bring up|pull up|start|set|create|wake me|timer|remind|take me|navigate|directions to|route to|research|find academic|find studies|literature review|search|google|look up online|volume|turn|make|lower|increase|decrease|clear|block|purge|read|summari[sz]e|list|show|check|what time|tell me the time|what is my battery|how much battery|remember|save|make a note|add task|to-?do|complete|finish|mark done|call|dial|text|sms|message|forget memory|remove the note|go to|enable|activate|monk mode|study mode)\b""",
         RegexOption.IGNORE_CASE
     )
 
