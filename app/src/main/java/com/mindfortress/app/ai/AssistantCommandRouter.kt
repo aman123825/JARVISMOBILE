@@ -100,8 +100,7 @@ object AssistantCommandRouter {
     fun parse(input: String): AssistantCommand? {
         val text = normalize(input)
         if (text.isBlank()) return null
-        val lower = text.lowercase(Locale.ROOT)
-        val commandKey = lower.trimEnd('.', '!', '?')
+        val commandKey = text.lowercase(Locale.ROOT).trimEnd('.', '!', '?')
 
         if (commandKey in setOf("what time is it", "tell me the time", "current time", "time now", "what is the time")) {
             return AssistantCommand.GetCurrentTime
@@ -109,7 +108,7 @@ object AssistantCommandRouter {
         if (commandKey in setOf("battery status", "what is my battery", "what's my battery", "battery percentage", "how much battery is left", "check battery")) {
             return AssistantCommand.GetBatteryStatus
         }
-        if (lower in setOf("volume status", "what is the volume", "current volume", "how loud is media volume")) {
+        if (commandKey in setOf("volume status", "what is the volume", "current volume", "how loud is media volume")) {
             return AssistantCommand.GetVolumeStatus
         }
         if (lower in setOf("read notifications", "read my notifications", "show notifications", "list notifications", "what did i miss", "what notifications did i get")) {
