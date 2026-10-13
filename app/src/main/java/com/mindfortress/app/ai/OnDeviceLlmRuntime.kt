@@ -77,16 +77,16 @@ class OnDeviceLlmRuntime(context: Context) {
             if (!staging.isFile || staging.length() <= 0L) {
                 throw IOException("The selected model file is empty.")
             }
-            if (target.exists() && !target.delete()) {
-                throw IOException("Could not replace the previous model file.")
-            }
-            if (!staging.renameTo(target)) {
-                staging.copyTo(target, overwrite = true)
-                if (!staging.delete()) staging.deleteOnExit()
-            }
-
             lifecycleMutex.withLock {
+                // Never replace the underlying file while the native runtime may still map it.
                 closeLoadedModelLocked()
+                if (target.exists() && !target.delete()) {
+                    throw IOException("Could not replace the previous model file.")
+                }
+                if (!staging.renameTo(target)) {
+                    staging.copyTo(target, overwrite = true)
+                    if (!staging.delete()) staging.deleteOnExit()
+                }
                 preferences.localLlmModelPath = target.absolutePath
             }
             target
