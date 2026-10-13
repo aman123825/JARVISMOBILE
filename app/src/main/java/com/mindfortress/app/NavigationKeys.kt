@@ -14,3 +14,5 @@ import kotlinx.serialization.Serializable
 @Serializable data object BoxBreathingKey : NavKey
 @Serializable data object LocalCompanionKey : NavKey
 @Serializable data object SettingsKey : NavKey
+
+@Serializable data object HearingCompanionKey : NavKey
