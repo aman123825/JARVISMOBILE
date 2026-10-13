@@ -56,7 +56,8 @@ import java.util.*
 fun JarvisMainHudScreen(
     onNavigateToGym: () -> Unit = {},
     onNavigateToShieldRules: () -> Unit = {},
-    onNavigateToPurification: () -> Unit = {}
+    onNavigateToPurification: () -> Unit = {},
+    onNavigateToHearing: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager.getInstance(context) }
@@ -316,10 +317,25 @@ fun JarvisMainHudScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Sovereign On-Device Status Banner (100% Autonomous, Offline-Ready)
-                SovereignOnDeviceBanner(
-                    modifier = Modifier.tactilePress(pressedScale = 0.98f) { showUplinkDialog = true }
-                )
+                // Quick access to the caption tool without adding a sixth bottom-nav item.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SovereignOnDeviceBanner(
+                            modifier = Modifier.tactilePress(pressedScale = 0.98f) { showUplinkDialog = true }
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onNavigateToHearing,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        border = BorderStroke(1.dp, ArcReactorCyan.copy(alpha = 0.7f))
+                    ) {
+                        Text("🦻 Hear", fontSize = 11.sp, color = ArcReactorCyan)
+                    }
+                }
             }
         }
     ) { padding ->
