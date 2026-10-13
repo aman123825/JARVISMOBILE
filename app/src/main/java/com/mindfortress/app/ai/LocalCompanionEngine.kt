@@ -45,7 +45,7 @@ class LocalCompanionEngine(private val context: Context) {
         }
 
         // 2. Direct Cloud Frontier API (if API Key provided by user)
-        if (prefs.frontierApiKey.isNotBlank() && prefs.frontierProvider != "PC_BRAIN") {
+        if (!prefs.isSovereignOfflineMode && prefs.frontierApiKey.isNotBlank() && prefs.frontierProvider != "PC_BRAIN") {
             val directCloud = queryDirectCloudApi(clean)
             if (!directCloud.isNullOrBlank()) {
                 val concise = directCloud.lines().filter { it.isNotBlank() && !it.startsWith("#") }.take(2).joinToString(" ")
@@ -62,7 +62,7 @@ class LocalCompanionEngine(private val context: Context) {
         }
 
         // 3. Optional PC Brain Link (Only if explicitly enabled and accessible)
-        if (prefs.frontierProvider == "PC_BRAIN" && prefs.brainServerUrl.isNotBlank()) {
+        if (!prefs.isSovereignOfflineMode && prefs.frontierProvider == "PC_BRAIN" && prefs.brainServerUrl.isNotBlank()) {
             val remoteResp = queryRemoteBrain(clean)
             if (!remoteResp.isNullOrBlank()) {
                 val concise = remoteResp.lines().filter { it.isNotBlank() && !it.startsWith("#") }.take(2).joinToString(" ")
