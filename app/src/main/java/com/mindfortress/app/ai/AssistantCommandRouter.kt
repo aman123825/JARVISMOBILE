@@ -16,6 +16,9 @@ sealed interface AssistantCommand {
     data class ResearchOnline(val query: String) : AssistantCommand
     data class SetAlarm(val hour: Int, val minute: Int, val label: String) : AssistantCommand
     data class SetTimer(val durationSeconds: Int, val label: String) : AssistantCommand
+    data class EngageFocusMode(val minutes: Int) : AssistantCommand
+    data object ClearDistractions : AssistantCommand
+    data class SetVolume(val percent: Int) : AssistantCommand
     data class DialNumber(val number: String) : AssistantCommand
     data class ComposeSms(val number: String, val body: String) : AssistantCommand
     data class CreateReminder(val delaySeconds: Int, val message: String) : AssistantCommand
@@ -49,6 +52,22 @@ object AssistantCommandRouter {
     )
     private val reminderDurationPattern = Regex(
         """^remind me in\s+(\d{1,5})\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)\s+(?:to\s+)?(.+)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val focusPattern = Regex(
+        """^(?:(?:start|enable|activate)\\s+)?(?:deep focus|focus lock|monk mode|padhai shuru karo|study mode)(?:\\s+(?:for\\s+)?(\\d{1,4})\\s*(minutes?|mins?|hours?|hrs?))?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val legacyFocusPattern = Regex(
+        """^lock (?:my )?phone(?:\\s+for\\s+(\\d{1,4})\\s*(minutes?|mins?|hours?|hrs?))?$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val clearDistractionsPattern = Regex(
+        """^(?:clear phone|clear distractions|block everything|purge distractions|stop distractions|distraction roko|distraction band karo)$""",
+        RegexOption.IGNORE_CASE
+    )
+    private val volumePattern = Regex(
+        """^(?:set )?volume (?:to )?(\\d{1,3})\\s*%?$""",
         RegexOption.IGNORE_CASE
     )
     private val dialPattern = Regex(
@@ -88,6 +107,27 @@ object AssistantCommandRouter {
         }
         if (lower in setOf("open settings", "system settings", "phone settings", "settings")) {
             return AssistantCommand.OpenSettings("general")
+        }
+
+        if (clearDistractionsPattern.matches(text)) return AssistantCommand.ClearDistractions
+
+        val focusMatch = focusPattern.find(text) ?: legacyFocusPattern.find(text)
+        if (focusMatch != null) {
+            val amount = focusMatch.groupValues.getOrNull(1).orEmpty().toIntOrNull()
+            val unit = focusMatch.groupValues.getOrNull(2).orEmpty().lowercase(Locale.ROOT)
+            val minutes = when {
+                amount == null -> 60
+                unit.startsWith("hour") || unit.startsWith("hr") -> amount * 60
+                else -> amount
+            }
+            if (minutes !in 1..1440) return null
+            return AssistantCommand.EngageFocusMode(minutes)
+        }
+
+        volumePattern.find(text)?.let { match ->
+            val percent = match.groupValues[1].toIntOrNull() ?: return null
+            if (percent !in 0..100) return null
+            return AssistantCommand.SetVolume(percent)
         }
 
         val settingsMatch = Regex(
