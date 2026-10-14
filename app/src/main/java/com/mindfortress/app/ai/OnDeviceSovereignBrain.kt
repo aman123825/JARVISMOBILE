@@ -69,7 +69,7 @@ class OnDeviceSovereignBrain(private val context: Context? = null) {
 
         // 2. App launches must be approved by the UI action broker first.
         // This brain never directly opens an app when called outside that path.
-        val openMatch = Regex("^(?:open|launch|start|run)\\s+(.+)").find(lower)
+        val openMatch = Regex("^(?:open|launch)\\s+(.+)").find(lower)
         if (openMatch != null) {
             val target = openMatch.groupValues[1].replace(Regex("^(the|an|app)\\s+"), "").trim()
             val msg = "Opening $target requires approval in the JARVIS action dialog."
