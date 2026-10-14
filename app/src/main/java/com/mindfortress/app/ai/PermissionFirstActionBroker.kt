@@ -112,7 +112,7 @@ object PermissionFirstActionBroker {
                     type = DeviceActionType.OPEN_APP,
                     originalCommand = command,
                     summary = "Open $appName",
-                    explanation = "JARVIS will open this app on your phone only after you approve.",
+                    explanation = "Low-risk navigation: because you explicitly requested this app, JARVIS can open it immediately without a second confirmation.",
                     target = appName
                 )
             }
