@@ -67,21 +67,22 @@ class OnDeviceSovereignBrain(private val context: Context? = null) {
             )
         }
 
-        // 2. Direct Application Launching (Galaxy S25 Host OS)
+        // 2. App launches must be approved by the UI action broker first.
+        // This brain never directly opens an app when called outside that path.
         val openMatch = Regex("^(?:open|launch|start|run)\\s+(.+)").find(lower)
         if (openMatch != null) {
             val target = openMatch.groupValues[1].replace(Regex("^(the|an|app)\\s+"), "").trim()
-            val executor = context?.let { DeviceActionExecutor(it) }
-            val (success, msg) = executor?.launchApplication(target) ?: Pair(false, "Application launching requires active device context.")
+            val msg = "Opening $target requires approval in the JARVIS action dialog."
             return BrainResult(
                 replyMarkdown = msg,
-                speechText = if (success) "Opening $target directly on your device." else msg,
-                actionTag = if (success) "LAUNCHED_$target" else "LAUNCH_FAILED"
+                speechText = msg,
+                actionTag = "ACTION_REQUIRES_APPROVAL"
             )
         }
 
-        // 3. Deep Focus & Monk Mode Lock
-        if (lower.contains("lock") || lower.contains("monk mode") || lower.contains("deep work") || lower.contains("padhai shuru")) {
+        // 3. Deep Focus & Monk Mode Lock. Avoid triggering on informational
+        // questions such as "explain deep work"; only explicit command forms pass.
+        if (PermissionFirstActionBroker.isFocusLockCommand(clean)) {
             val minutes = extractMinutes(lower) ?: 60
             val executor = context?.let { DeviceActionExecutor(it) }
             val msg = executor?.activateDeepFocusLock(minutes)
