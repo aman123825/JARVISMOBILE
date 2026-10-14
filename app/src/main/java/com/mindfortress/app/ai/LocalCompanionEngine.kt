@@ -51,14 +51,21 @@ class LocalCompanionEngine(private val context: Context) {
      * app-launch or focus-lock commands directly.
      */
     fun processApprovedInput(userInput: String, speakOutput: Boolean = true): CompanionResponse =
-        processInputInternal(userInput, speakOutput)
+        processInputInternal(userInput, speakOutput, allowApprovedDeviceActions = true)
 
-    private fun processInputInternal(userInput: String, speakOutput: Boolean): CompanionResponse {
+    private fun processInputInternal(
+        userInput: String,
+        speakOutput: Boolean,
+        allowApprovedDeviceActions: Boolean = false
+    ): CompanionResponse {
         val clean = userInput.trim()
         val lower = clean.lowercase()
 
         // 1. Process via On-Device Sovereign Brain First (100% Local, 0ms Network Dependency)
-        val sovereignResult = sovereignBrain.processSovereignInput(clean)
+        val sovereignResult = sovereignBrain.processSovereignInput(
+            clean,
+            allowDeviceActions = allowApprovedDeviceActions
+        )
         if (sovereignResult.actionTag != null && sovereignResult.actionTag != "SOVEREIGN_STANDBY") {
             if (speakOutput && sovereignResult.speechText.isNotEmpty()) {
                 actionExecutor.speak(sovereignResult.speechText)
