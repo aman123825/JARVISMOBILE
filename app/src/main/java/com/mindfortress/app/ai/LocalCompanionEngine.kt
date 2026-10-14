@@ -38,6 +38,26 @@ class LocalCompanionEngine(private val context: Context) {
         localGemmaRuntime.installModel(uri)
 
     /**
+     * Strictly on-device fallback for when the LiteRT-LM model is not installed
+     * or cannot initialize. This deliberately bypasses optional cloud/PC providers.
+     */
+    private suspend fun processOfflineFallback(
+        userInput: String,
+        speakOutput: Boolean
+    ): CompanionResponse = withContext(Dispatchers.IO) {
+        val result = sovereignBrain.processSovereignInput(userInput)
+        if (speakOutput && result.speechText.isNotBlank()) {
+            actionExecutor.speak(result.speechText)
+        }
+        CompanionResponse(
+            replyText = result.replyMarkdown,
+            speechText = result.speechText,
+            executedAction = result.actionTag ?: "ON_DEVICE_SOVEREIGN_FALLBACK",
+            suggestedPrompt = result.suggestedPrompt
+        )
+    }
+
+    /**
      * Local-first conversational entry point. Device actions are still parsed by
      * PermissionFirstActionBroker before the model can see the request.
      */
@@ -60,7 +80,8 @@ class LocalCompanionEngine(private val context: Context) {
         }
 
         if (!localGemmaRuntime.isModelInstalled()) {
-            return withContext(Dispatchers.IO) { processInput(clean, speakOutput) }
+            // This path is explicitly offline: do not fall back to a cloud API or PC brain.
+            return processOfflineFallback(clean, speakOutput)
         }
 
         return try {
@@ -79,10 +100,10 @@ class LocalCompanionEngine(private val context: Context) {
             )
         } catch (error: Exception) {
             Log.e("LocalCompanionEngine", "Local Gemma inference failed; using the existing fallback.", error)
-            val fallback = withContext(Dispatchers.IO) { processInput(clean, speakOutput) }
+            val fallback = processOfflineFallback(clean, speakOutput)
             fallback.copy(
                 replyText = "Local Gemma inference failed: ${error.message ?: error.javaClass.simpleName}. " +
-                    "Using the existing JARVIS fallback instead.\n\n${fallback.replyText}"
+                    "Using the offline JARVIS fallback instead.\n\n${fallback.replyText}"
             )
         }
     }
