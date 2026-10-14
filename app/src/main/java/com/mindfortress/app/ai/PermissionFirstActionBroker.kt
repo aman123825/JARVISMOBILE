@@ -31,27 +31,27 @@ data class DeviceActionProposal(
 
 object PermissionFirstActionBroker {
     private val reminderPattern = Regex(
-        """^(?:please\\s+)?remind\\s+me\\s+to\\s+(.+)$""",
+        """^(?:please\s+)?remind\s+me\s+to\s+(.+)$""",
         RegexOption.IGNORE_CASE
     )
 
     private val messagePatterns = listOf(
         Regex(
-            """^(?:please\\s+)?(?:send|text|message)\\s+(.+?)\\s+(?:a\\s+)?(?:text|sms|message)\\s+(?:saying|that says|with message|with text)\\s+(.+)$""",
+            """^(?:please\s+)?(?:send|text|message)\s+(.+?)\s+(?:a\s+)?(?:text|sms|message)\s+(?:saying|that says|with message|with text)\s+(.+)$""",
             RegexOption.IGNORE_CASE
         ),
         Regex(
-            """^(?:please\\s+)?(?:send|text|message)\\s+(?:a\\s+)?(?:text|sms|message)\\s+to\\s+(.+?)\\s+(?:saying|that says|with message|with text)\\s+(.+)$""",
+            """^(?:please\s+)?(?:send|text|message)\s+(?:a\s+)?(?:text|sms|message)\s+to\s+(.+?)\s+(?:saying|that says|with message|with text)\s+(.+)$""",
             RegexOption.IGNORE_CASE
         ),
         Regex(
-            """^(?:please\\s+)?(?:send|text|message)\\s+(.+?)\\s*:\\s*(.+)$""",
+            """^(?:please\s+)?(?:send|text|message)\s+(.+?)\s*:\s*(.+)$""",
             RegexOption.IGNORE_CASE
         )
     )
 
     private val openAppPattern = Regex(
-        """^(?:please\\s+)?(?:open|launch|start|run)\\s+(?:the\\s+)?(.+?)(?:\\s+app)?[.!?]*$""",
+        """^(?:please\s+)?(?:open|launch|start|run)\s+(?:the\s+)?(.+?)(?:\s+app)?[.!?]*$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -128,10 +128,10 @@ object PermissionFirstActionBroker {
     fun isFocusLockCommand(rawCommand: String): Boolean {
         val command = rawCommand.trim().lowercase(Locale.ROOT)
         val patterns = listOf(
-            Regex("""^(?:please\\s+)?lock(?:\\s+(?:(?:my|the)\\s+)?(?:phone|device))?(?:\\s+for\\s+\\d+\\s*(?:minutes?|mins?|hours?|hrs?))?[.!?]*$"""),
-            Regex("""^(?:please\\s+)?padhai\\s+shuru(?:\\s+.*)?[.!?]*$"""),
-            Regex("""^(?:please\\s+)?(?:activate|enable|start|begin|turn on)\\b.*\\b(?:monk mode|deep work|focus lock|focus mode|ultradian)\\b.*[.!?]*$"""),
-            Regex("""^(?:please\\s+)?(?:monk mode|deep work|focus lock|focus mode)(?:\\s+for\\s+\\d+\\s*(?:minutes?|mins?|hours?|hrs?))?[.!?]*$""")
+            Regex("""^(?:please\s+)?lock(?:\s+(?:(?:my|the)\s+)?(?:phone|device))?(?:\s+for\s+\d+\s*(?:minutes?|mins?|hours?|hrs?))?[.!?]*$"""),
+            Regex("""^(?:please\s+)?padhai\s+shuru(?:\s+.*)?[.!?]*$"""),
+            Regex("""^(?:please\s+)?(?:activate|enable|start|begin|turn on)\b.*\b(?:monk mode|deep work|focus lock|focus mode|ultradian)\b.*[.!?]*$"""),
+            Regex("""^(?:please\s+)?(?:monk mode|deep work|focus lock|focus mode)(?:\s+for\s+\d+\s*(?:minutes?|mins?|hours?|hrs?))?[.!?]*$""")
         )
         return patterns.any { it.matches(command) }
     }
