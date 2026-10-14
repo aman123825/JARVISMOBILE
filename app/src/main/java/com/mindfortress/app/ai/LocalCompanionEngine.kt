@@ -12,7 +12,9 @@ data class CompanionResponse(
     val replyText: String,
     val speechText: String = "",
     val executedAction: String? = null,
-    val suggestedPrompt: String? = null
+    val suggestedPrompt: String? = null,
+    /** Non-null means the UI must show an approval dialog before executing this action. */
+    val pendingAction: DeviceActionProposal? = null
 )
 
 class LocalCompanionEngine(private val context: Context) {
@@ -26,7 +28,32 @@ class LocalCompanionEngine(private val context: Context) {
         return sovereignBrain.getLocalGgufModel()
     }
 
+    /**
+     * Normal entry point. Potential device side effects are converted to proposals
+     * and never execute until the HUD routes an explicit user approval.
+     */
     fun processInput(userInput: String, speakOutput: Boolean = true): CompanionResponse {
+        val proposal = PermissionFirstActionBroker.propose(userInput)
+        if (proposal != null) {
+            return CompanionResponse(
+                replyText = "Approval required: ${proposal.summary}",
+                speechText = "",
+                executedAction = "ACTION_PENDING_APPROVAL",
+                pendingAction = proposal
+            )
+        }
+        return processInputInternal(userInput, speakOutput)
+    }
+
+    /**
+     * Approved-action entry point. Call only from the explicit approval handler.
+     * Keeping the bypass separate prevents the normal input path from executing
+     * app-launch or focus-lock commands directly.
+     */
+    fun processApprovedInput(userInput: String, speakOutput: Boolean = true): CompanionResponse =
+        processInputInternal(userInput, speakOutput)
+
+    private fun processInputInternal(userInput: String, speakOutput: Boolean): CompanionResponse {
         val clean = userInput.trim()
         val lower = clean.lowercase()
 
