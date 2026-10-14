@@ -35,6 +35,19 @@ class LocalCompanionEngine(private val context: Context) {
     fun processInput(userInput: String, speakOutput: Boolean = true): CompanionResponse {
         val proposal = PermissionFirstActionBroker.propose(userInput)
         if (proposal != null) {
+            // Low-risk navigation: opening a user-requested app does not require
+            // a second confirmation. Sensitive/externally visible actions below
+            // remain queued for the explicit approval dialog.
+            if (proposal.type == DeviceActionType.OPEN_APP) {
+                val appName = proposal.target.orEmpty()
+                val (success, message) = actionExecutor.launchApplication(appName)
+                return CompanionResponse(
+                    replyText = message,
+                    speechText = "",
+                    executedAction = if (success) "LAUNCHED_APP" else "APP_LAUNCH_FAILED"
+                )
+            }
+
             return CompanionResponse(
                 replyText = "Approval required: ${proposal.summary}",
                 speechText = "",
