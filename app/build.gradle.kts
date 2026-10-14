@@ -47,7 +47,11 @@ android {
 }
 
 kotlin {
-    jvmToolchain(17)
+    // LiteRT-LM 0.18.0 publishes Java 21 bytecode; keep Android app bytecode at Java 17 below.
+    jvmToolchain(21)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 dependencies {
@@ -91,4 +95,6 @@ dependencies {
 
   // On-Device Sherpa-ONNX Neural Speech Recognition & Silero VAD
   implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8")
+  // Local Gemma inference. The exported .litertlm model is imported separately at runtime.
+  implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
 }

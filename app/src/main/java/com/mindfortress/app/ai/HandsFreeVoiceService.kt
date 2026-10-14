@@ -70,7 +70,12 @@ class HandsFreeVoiceService : Service() {
                 if (normalizedCommand != null) {
                     Log.i(TAG, "Executing hands-free command: $normalizedCommand")
                     runCatching { voiceEngine.pause() }
-                    val response = companionEngine.processInput(normalizedCommand, speakOutput = true)
+                    val response = companionEngine.processInputWithLocalModel(normalizedCommand, speakOutput = true)
+                    if (response.pendingAction != null) {
+                        companionEngine.actionExecutor.speak(
+                            "This action needs your approval. Open JARVIS to review: ${response.pendingAction.summary}"
+                        )
+                    }
                     delay(4000L)
                     if (!isDestroyedService) {
                         runCatching { voiceEngine.resume() }

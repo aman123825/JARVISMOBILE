@@ -1,9 +1,13 @@
 package com.mindfortress.app.ai
 
 import android.content.Context
+import android.net.Uri
+import android.util.Log
 import com.mindfortress.app.data.PreferencesManager
 import org.json.JSONObject
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.random.Random
@@ -22,10 +26,65 @@ class LocalCompanionEngine(private val context: Context) {
     val actionExecutor = DeviceActionExecutor(context)
     val sovereignBrain = OnDeviceSovereignBrain(context)
     private val prefs = PreferencesManager.getInstance(context)
+    private val localGemmaRuntime = Gemma4LiteRtRuntime.getInstance(context)
 
-    // Checks if a local LLM weight file exists in internal/external storage (e.g. gemma-2b.bin / model.bin)
-    fun getLocalModelFile(): File? {
-        return sovereignBrain.getLocalGgufModel()
+    // Legacy GGUF lookup is retained for compatibility with earlier experimental files.
+    fun getLocalModelFile(): File? =
+        localGemmaRuntime.installedModelPath()?.let(::File) ?: sovereignBrain.getLocalGgufModel()
+
+    fun hasLocalGemmaModel(): Boolean = localGemmaRuntime.isModelInstalled()
+
+    suspend fun installLocalGemmaModel(uri: Uri): File =
+        localGemmaRuntime.installModel(uri)
+
+    /**
+     * Local-first conversational entry point. Device actions are still parsed by
+     * PermissionFirstActionBroker before the model can see the request.
+     */
+    suspend fun processInputWithLocalModel(
+        userInput: String,
+        speakOutput: Boolean = true
+    ): CompanionResponse {
+        val clean = userInput.trim()
+        if (clean.isEmpty()) return processInput(clean, speakOutput)
+
+        // All recognized phone actions stay on the deterministic broker path.
+        if (PermissionFirstActionBroker.propose(clean) != null) {
+            return processInput(clean, speakOutput)
+        }
+
+        // Preserve existing deterministic features (presence, guided modes, drills).
+        val deterministic = sovereignBrain.processSovereignInput(clean)
+        if (deterministic.actionTag != null && deterministic.actionTag != "SOVEREIGN_STANDBY") {
+            return withContext(Dispatchers.IO) { processInput(clean, speakOutput) }
+        }
+
+        if (!localGemmaRuntime.isModelInstalled()) {
+            return withContext(Dispatchers.IO) { processInput(clean, speakOutput) }
+        }
+
+        return try {
+            val reply = localGemmaRuntime.generate(clean)
+            val speech = reply.lineSequence()
+                .filter { it.isNotBlank() && !it.trimStart().startsWith("#") }
+                .take(3)
+                .joinToString(" ")
+                .take(900)
+            if (speakOutput && speech.isNotBlank()) actionExecutor.speak(speech)
+            CompanionResponse(
+                replyText = reply,
+                speechText = speech,
+                executedAction = "LOCAL_GEMMA4_RESPONSE",
+                suggestedPrompt = "Continue our conversation"
+            )
+        } catch (error: Exception) {
+            Log.e("LocalCompanionEngine", "Local Gemma inference failed; using the existing fallback.", error)
+            val fallback = withContext(Dispatchers.IO) { processInput(clean, speakOutput) }
+            fallback.copy(
+                replyText = "Local Gemma inference failed: ${error.message ?: error.javaClass.simpleName}. " +
+                    "Using the existing JARVIS fallback instead.\n\n${fallback.replyText}"
+            )
+        }
     }
 
     /**

@@ -81,6 +81,8 @@ fun JarvisMainHudScreen(
     var showUplinkDialog by remember { mutableStateOf(false) }
     var showLifeMatrixDialog by remember { mutableStateOf(false) }
     var pendingDeviceAction by remember { mutableStateOf<DeviceActionProposal?>(null) }
+    var isLocalGemmaInstalled by remember { mutableStateOf(companionEngine.hasLocalGemmaModel()) }
+    var isLocalGemmaImporting by remember { mutableStateOf(false) }
     var brainUrlInput by remember { mutableStateOf(prefs.brainServerUrl) }
     var cloudKeyInput by remember { mutableStateOf(prefs.frontierApiKey) }
     var selectedProvider by remember { mutableStateOf(prefs.frontierProvider) }
@@ -118,6 +120,27 @@ fun JarvisMainHudScreen(
         }
     }
 
+    val localGemmaPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isLocalGemmaImporting = true
+                executionError = null
+                try {
+                    companionEngine.installLocalGemmaModel(uri)
+                    isLocalGemmaInstalled = companionEngine.hasLocalGemmaModel()
+                    latestResponse = "Local Gemma model imported. It will load on your first general chat request; that first response can take longer."
+                } catch (error: Exception) {
+                    executionError = error.message ?: "Could not import the local model."
+                    latestResponse = "Local model import failed."
+                } finally {
+                    isLocalGemmaImporting = false
+                }
+            }
+        }
+    }
+
     fun handleSend(text: String) {
         val clean = text.trim()
         if (clean.isEmpty()) return
@@ -131,7 +154,7 @@ fun JarvisMainHudScreen(
             try {
                 // Pause mic listening while Jarvis responds to prevent acoustic feedback
                 voiceEngine.pause()
-                val res = companionEngine.processInput(clean, speakOutput = true)
+                val res = companionEngine.processInputWithLocalModel(clean, speakOutput = true)
                 if (res.pendingAction != null) {
                     pendingDeviceAction = res.pendingAction
                     latestResponse = "Action awaiting approval: ${res.pendingAction.summary}"
@@ -384,6 +407,37 @@ fun JarvisMainHudScreen(
                 SovereignOnDeviceBanner(
                     modifier = Modifier.tactilePress(pressedScale = 0.98f) { showUplinkDialog = true }
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "LOCAL GEMMA 4 MODEL",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            color = ArcReactorCyan
+                        )
+                        Text(
+                            if (isLocalGemmaInstalled) "Export installed — inference is on-device"
+                            else "Not installed — scripted offline fallback remains active",
+                            fontSize = 10.sp,
+                            color = if (isLocalGemmaInstalled) NeonEmerald else NeutralTextMuted
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { localGemmaPicker.launch(arrayOf("*/*")) },
+                        enabled = !isLocalGemmaImporting
+                    ) {
+                        Text(
+                            if (isLocalGemmaImporting) "IMPORTING…" else "IMPORT MODEL",
+                            fontSize = 10.sp
+                        )
+                    }
+                }
             }
         }
     ) { padding ->

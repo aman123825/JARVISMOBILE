@@ -91,8 +91,11 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
         inputText = ""
 
         scope.launch {
-            val res = companionEngine.processInput(trimmed)
-            messages.add(ChatMessage(res.replyText, isUser = false))
+            val res = companionEngine.processInputWithLocalModel(trimmed)
+            val visibleReply = if (res.pendingAction != null) {
+                "${res.replyText}\n\nOpen the main JARVIS HUD to review and approve this action. Nothing was executed here."
+            } else res.replyText
+            messages.add(ChatMessage(visibleReply, isUser = false))
             listState.animateScrollToItem(messages.size - 1)
 
             // Auto-speak response
