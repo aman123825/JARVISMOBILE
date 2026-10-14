@@ -11,6 +11,10 @@ This feature keeps low-risk navigation direct while asking before actions that h
 5. `Start 90 minute ultradian deep work block on STEM` — shows the approval dialog. Only an explicit approval can reach the focus-lock executor.
 6. `Explain what deep work means` — remains a normal conversation and must not lock the device.
 
+## CI build
+
+The repository's Android debug APK workflow runs on pull requests targeting `main`. The PR artifact is intended for local trial after the build and unit tests pass.
+
 ## Manual trial checklist
 
 - [ ] Install the debug APK on a personal test device.
