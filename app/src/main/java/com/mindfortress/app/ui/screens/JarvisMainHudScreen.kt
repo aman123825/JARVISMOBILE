@@ -38,6 +38,9 @@ import com.mindfortress.app.ai.AmbientAcousticSentinel
 import com.mindfortress.app.ai.AcousticEnvironment
 import com.mindfortress.app.ai.LocalCompanionEngine
 import com.mindfortress.app.ai.NativeSovereignVoiceEngine
+import com.mindfortress.app.ai.DeviceActionProposal
+import com.mindfortress.app.ai.DeviceActionType
+import com.mindfortress.app.ai.PermissionFirstActionBroker
 import com.mindfortress.app.data.PreferencesManager
 import com.mindfortress.app.service.AppBlockerAccessibilityService
 import com.mindfortress.app.service.JarvisFloatingOverlayService
@@ -77,6 +80,7 @@ fun JarvisMainHudScreen(
     // Dialog state
     var showUplinkDialog by remember { mutableStateOf(false) }
     var showLifeMatrixDialog by remember { mutableStateOf(false) }
+    var pendingDeviceAction by remember { mutableStateOf<DeviceActionProposal?>(null) }
     var brainUrlInput by remember { mutableStateOf(prefs.brainServerUrl) }
     var cloudKeyInput by remember { mutableStateOf(prefs.frontierApiKey) }
     var selectedProvider by remember { mutableStateOf(prefs.frontierProvider) }
@@ -128,6 +132,12 @@ fun JarvisMainHudScreen(
                 // Pause mic listening while Jarvis responds to prevent acoustic feedback
                 voiceEngine.pause()
                 val res = companionEngine.processInput(clean, speakOutput = true)
+                if (res.pendingAction != null) {
+                    pendingDeviceAction = res.pendingAction
+                    latestResponse = "Action awaiting approval: ${res.pendingAction.summary}"
+                    coreState = JarvisCoreState.STANDBY
+                    return@launch
+                }
                 coreState = JarvisCoreState.SPEAKING
                 latestResponse = res.replyText
                 delay(3000)
@@ -137,6 +147,74 @@ fun JarvisMainHudScreen(
                 coreState = JarvisCoreState.STANDBY
             } finally {
                 runCatching { voiceEngine.resume() }
+            }
+        }
+    }
+
+    /**
+     * Executes only after the user presses APPROVE in the action dialog.
+     */
+    fun approvePendingAction(proposal: DeviceActionProposal) {
+        pendingDeviceAction = null
+        executionError = null
+
+        when (proposal.type) {
+            DeviceActionType.OPEN_APP -> {
+                val appName = proposal.target.orEmpty()
+                val (success, message) = companionEngine.actionExecutor.launchApplication(appName)
+                latestResponse = message
+                if (!success) executionError = message
+                coreState = JarvisCoreState.STANDBY
+            }
+
+            DeviceActionType.FOCUS_LOCK -> {
+                coreState = JarvisCoreState.THINKING
+                scope.launch {
+                    try {
+                        voiceEngine.pause()
+                        val result = companionEngine.processApprovedInput(
+                            proposal.originalCommand,
+                            speakOutput = true
+                        )
+                        latestResponse = result.replyText
+                        coreState = JarvisCoreState.SPEAKING
+                        delay(1800)
+                        coreState = JarvisCoreState.STANDBY
+                    } catch (e: Throwable) {
+                        executionError = e.message ?: "JARVIS could not complete the approved action."
+                        coreState = JarvisCoreState.STANDBY
+                    } finally {
+                        runCatching { voiceEngine.resume() }
+                    }
+                }
+            }
+
+            DeviceActionType.DRAFT_SMS -> {
+                try {
+                    context.startActivity(
+                        PermissionFirstActionBroker.createSmsDraftIntent(proposal)
+                    )
+                    latestResponse = "Messaging app opened with the draft. Nothing was sent; review the recipient and message, then press Send in that app."
+                    coreState = JarvisCoreState.STANDBY
+                } catch (e: Exception) {
+                    executionError = e.message ?: "No compatible messaging app was found."
+                    latestResponse = "Could not open the messaging draft."
+                    coreState = JarvisCoreState.STANDBY
+                }
+            }
+
+            DeviceActionType.CALENDAR_REMINDER -> {
+                try {
+                    context.startActivity(
+                        PermissionFirstActionBroker.createCalendarDraftIntent(proposal)
+                    )
+                    latestResponse = "Calendar event draft opened. Choose the date and time, then save it in Calendar."
+                    coreState = JarvisCoreState.STANDBY
+                } catch (e: Exception) {
+                    executionError = e.message ?: "No compatible calendar app was found."
+                    latestResponse = "Could not open the calendar draft."
+                    coreState = JarvisCoreState.STANDBY
+                }
             }
         }
     }
@@ -868,6 +946,94 @@ fun JarvisMainHudScreen(
                 }
             }
         }
+    }
+
+    // Action approval: every routed device action must be explicitly approved.
+    pendingDeviceAction?.let { action ->
+        AlertDialog(
+            onDismissRequest = {
+                pendingDeviceAction = null
+                latestResponse = "Cancelled. No device action was performed."
+            },
+            title = {
+                Text(
+                    "JARVIS ACTION APPROVAL",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = QuantumAmber
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        action.summary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        action.explanation,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFFCBD5E1)
+                    )
+                    action.target?.let { target ->
+                        Text(
+                            "Target / title: ${target}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ArcReactorCyan
+                        )
+                    }
+                    action.messageBody?.let { body ->
+                        Text(
+                            "Message draft:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ArcReactorCyan
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = DeepSpaceObsidian,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                body,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        "No action runs until you approve.",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = QuantumAmber
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { approvePendingAction(action) },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonEmerald)
+                ) {
+                    Text("APPROVE", color = DeepSpaceObsidian, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        pendingDeviceAction = null
+                        latestResponse = "Cancelled. No device action was performed."
+                    }
+                ) {
+                    Text("CANCEL", color = NeutralTextMuted)
+                }
+            },
+            containerColor = CyberCardSurface
+        )
     }
 
     // Modal: Neural Uplink Config (PC Brain / Cloud Frontier Model)
