@@ -52,7 +52,10 @@ class OnDeviceSovereignBrain(private val context: Context? = null) {
     /**
      * Master on-device processor. Executes in <25ms on local CPU/NPU.
      */
-    fun processSovereignInput(input: String): BrainResult {
+    fun processSovereignInput(
+        input: String,
+        allowDeviceActions: Boolean = false
+    ): BrainResult {
         val clean = input.trim()
         val lower = clean.lowercase(Locale.ROOT)
 
@@ -83,6 +86,14 @@ class OnDeviceSovereignBrain(private val context: Context? = null) {
         // 3. Deep Focus & Monk Mode Lock. Avoid triggering on informational
         // questions such as "explain deep work"; only explicit command forms pass.
         if (PermissionFirstActionBroker.isFocusLockCommand(clean)) {
+            if (!allowDeviceActions) {
+                val approvalMessage = "This focus action requires approval in the JARVIS action dialog."
+                return BrainResult(
+                    replyMarkdown = approvalMessage,
+                    speechText = approvalMessage,
+                    actionTag = "ACTION_REQUIRES_APPROVAL"
+                )
+            }
             val minutes = extractMinutes(lower) ?: 60
             val executor = context?.let { DeviceActionExecutor(it) }
             val msg = executor?.activateDeepFocusLock(minutes)
