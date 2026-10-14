@@ -8,12 +8,12 @@ import org.junit.Test
 class PermissionFirstActionBrokerTest {
 
     @Test
-    fun openAppRequiresApprovalProposal() {
+    fun openAppIsClassifiedAsLowRiskNavigation() {
         val proposal = PermissionFirstActionBroker.propose("open WhatsApp")
 
         assertEquals(DeviceActionType.OPEN_APP, proposal?.type)
         assertEquals("WhatsApp", proposal?.target)
-        assertTrue(proposal?.explanation?.contains("only after you approve") == true)
+        assertTrue(proposal?.explanation?.contains("without a second confirmation") == true)
     }
 
     @Test
