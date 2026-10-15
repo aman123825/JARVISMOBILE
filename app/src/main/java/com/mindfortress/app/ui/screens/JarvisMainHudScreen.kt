@@ -44,6 +44,7 @@ import com.mindfortress.app.ai.PermissionFirstActionBroker
 import com.mindfortress.app.data.PreferencesManager
 import com.mindfortress.app.service.AppBlockerAccessibilityService
 import com.mindfortress.app.service.JarvisNotificationListenerService
+import com.mindfortress.app.service.JarvisScreenReaderAccessibilityService
 import com.mindfortress.app.service.JarvisFloatingOverlayService
 import com.mindfortress.app.service.MindShieldVpnService
 import com.mindfortress.app.theme.*
@@ -548,7 +549,7 @@ fun JarvisMainHudScreen(
                             OutlinedButton(
                                 modifier = Modifier.weight(1f),
                                 onClick = {
-                                    AppBlockerAccessibilityService.openAccessibilitySettings(context)
+                                    JarvisScreenReaderAccessibilityService.openAccessibilitySettings(context)
                                 }
                             ) {
                                 Text("SCREEN READING ACCESS", fontSize = 9.sp)
