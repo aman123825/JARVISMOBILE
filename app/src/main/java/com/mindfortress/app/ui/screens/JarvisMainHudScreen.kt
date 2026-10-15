@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mindfortress.app.access.PhoneAccessStore
 import com.mindfortress.app.ai.AmbientAcousticSentinel
 import com.mindfortress.app.ai.AcousticEnvironment
 import com.mindfortress.app.ai.LocalCompanionEngine
@@ -554,6 +555,15 @@ fun JarvisMainHudScreen(
                             ) {
                                 Text("SCREEN READING ACCESS", fontSize = 9.sp)
                             }
+                        }
+                        TextButton(
+                            onClick = {
+                                PhoneAccessStore.clearInMemoryCache()
+                                latestResponse = "The local notification and screen-reading cache has been cleared."
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("CLEAR READ CACHE", fontSize = 9.sp, color = NeutralTextMuted)
                         }
                     }
                 }
