@@ -89,7 +89,7 @@ class DeviceActionExecutor(private val context: Context) : TextToSpeech.OnInitLi
         tts?.setSpeechRate(currentSpeechRate)
         tts?.stop()
 
-        val clean = text.replace(Regex("[#*\u0060$\\[\\]_]" ), "").trim()
+        val clean = text.replace(Regex("[#*\\[\\]_]"), "").trim()
         val chunks = mutableListOf<String>()
         var remaining = clean
         while (remaining.length > maxChunkLength) {
