@@ -93,7 +93,7 @@ class JarvisNotificationListenerService : NotificationListenerService() {
         fun isNotificationAccessEnabled(context: Context): Boolean {
             val enabled = Settings.Secure.getString(
                 context.contentResolver,
-                Settings.Secure.ENABLED_NOTIFICATION_LISTENERS
+                "enabled_notification_listeners"
             ) ?: return false
             val expected = ComponentName(context, JarvisNotificationListenerService::class.java)
                 .flattenToString()
