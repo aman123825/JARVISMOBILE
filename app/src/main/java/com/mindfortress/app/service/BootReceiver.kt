@@ -12,9 +12,11 @@ class BootReceiver : BroadcastReceiver() {
         val action = intent?.action
         Log.i(TAG, "Device boot/restart event received: $action")
 
+        // Do not restart services on MY_PACKAGE_REPLACED. Android restricts
+        // background microphone foreground-service starts on modern releases.
+        // The user can explicitly enable hands-free mode after opening JARVIS.
         val validActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
             "android.intent.action.QUICKBOOT_POWERON",
             "com.htc.intent.action.QUICKBOOT_POWERON"
         )
@@ -42,15 +44,10 @@ class BootReceiver : BroadcastReceiver() {
                 }
             }
 
-            // 3. Restore Hands-Free Voice Listener if enabled
-            if (prefs.isHandsFreeVoiceActive) {
-                try {
-                    HandsFreeVoiceService.start(context)
-                    Log.i(TAG, "HandsFreeVoiceService auto-started on boot.")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error starting Hands-Free Voice on boot: ${e.message}")
-                }
-            }
+            // Microphone capture is intentionally not auto-started from boot.
+            // On current Android versions, microphone foreground services must be
+            // started from an eligible visible/user-initiated context. Launch JARVIS
+            // and enable hands-free listening explicitly from its UI.
         }
     }
 
