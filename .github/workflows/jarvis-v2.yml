@@ -1,0 +1,62 @@
+name: JARVIS V2 clean Android build
+
+on:
+  push:
+    branches: [ 'rebuild/v2-clean-core' ]
+  pull_request:
+    branches: [ 'rebuild/v2-clean-core' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jarvis-v2-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-v2:
+    name: Build and test clean JARVIS V2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android 36 SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Enable Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Build V2 APK and run unit tests
+        run: ./gradlew --no-daemon --stacktrace :jarvis-v2:assembleDebug :jarvis-v2:testDebugUnitTest
+
+      - name: Upload V2 debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-V2-debug-apk
+          path: jarvis-v2/build/outputs/apk/debug/jarvis-v2-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload V2 unit test report
+        if: always() && hashFiles('jarvis-v2/build/reports/tests/testDebugUnitTest/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-V2-unit-test-report
+          path: jarvis-v2/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
