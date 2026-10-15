@@ -205,15 +205,24 @@ class NativeSovereignVoiceEngine(context: Context) {
     /** Immediately trigger streaming ASR (push-to-talk) without requiring the 'Hey Jarvis' keyword. */
     fun forceWake() {
         scope.launch {
+            // start() owns lifecycleMutex itself. Never call it from inside
+            // lifecycleMutex.withLock; Mutex is non-reentrant and that deadlocks.
+            if (audioRecord == null) {
+                try {
+                    start()
+                } catch (t: Throwable) {
+                    _error.value = t.message ?: t.javaClass.simpleName
+                    _state.value = State.IDLE
+                    return@launch
+                }
+            }
+
             lifecycleMutex.withLock {
                 if (closed) return@withLock
                 if (audioRecord == null) {
-                    try {
-                        start()
-                    } catch (t: Throwable) {
-                        _error.value = t.message
-                        return@withLock
-                    }
+                    _error.value = "Microphone did not start. Check microphone permission and try again."
+                    _state.value = State.IDLE
+                    return@withLock
                 }
                 activateAsrFromPreRoll()
             }
