@@ -22,7 +22,6 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
     }
 }
 
@@ -30,5 +29,5 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "MindFortress"
-include(":app")
+rootProject.name = "JARVISMOBILE-V2"
+include(":jarvis-v2")
