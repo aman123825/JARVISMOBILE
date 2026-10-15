@@ -129,7 +129,10 @@ Do not invent current facts. You may be offline.
         }
     }
 
-    suspend fun respond(rawPrompt: String): String = withContext(Dispatchers.IO) {
+    suspend fun respond(
+        rawPrompt: String,
+        onPartialResponse: suspend (String) -> Unit = {}
+    ): String = withContext(Dispatchers.IO) {
         val prompt = rawPrompt.trim().take(MAX_PROMPT_CHARACTERS)
         require(prompt.isNotEmpty()) { "Enter a message first." }
 
@@ -143,7 +146,13 @@ Do not invent current facts. You may be offline.
                 val output = StringBuilder()
                 requireNotNull(conversation)
                     .sendMessageAsync(prompt)
-                    .collect { part -> output.append(part.toString()) }
+                    .collect { part ->
+                        output.append(part.toString())
+                        val partial = output.toString()
+                        withContext(Dispatchers.Main.immediate) {
+                            onPartialResponse(partial)
+                        }
+                    }
                 output.toString().trim().ifBlank {
                     throw IOException("The local model returned no text. Try a shorter prompt.")
                 }
