@@ -79,6 +79,45 @@ class DeviceActionExecutor(private val context: Context) : TextToSpeech.OnInitLi
         }
     }
 
+    /**
+     * Speaks long read-only content in bounded chunks so screen text and
+     * notification previews are not silently truncated at one TTS utterance.
+     */
+    fun speakLongText(text: String, maxChunkLength: Int = 2_600) {
+        if (!isTtsReady || tts == null || text.isBlank()) return
+        tts?.setPitch(currentPitch)
+        tts?.setSpeechRate(currentSpeechRate)
+        tts?.stop()
+
+        val clean = text.replace(Regex("[#*\u0060$\\[\\]_]" ), "").trim()
+        val chunks = mutableListOf<String>()
+        var remaining = clean
+        while (remaining.length > maxChunkLength) {
+            var cut = maxChunkLength
+            val newline = remaining.lastIndexOf('\n', maxChunkLength - 1)
+            val sentence = maxOf(
+                remaining.lastIndexOf('.', maxChunkLength - 1),
+                remaining.lastIndexOf('!', maxChunkLength - 1),
+                remaining.lastIndexOf('?', maxChunkLength - 1),
+                remaining.lastIndexOf(';', maxChunkLength - 1)
+            )
+            val preferred = maxOf(newline, sentence)
+            if (preferred >= maxChunkLength / 2) cut = preferred + 1
+            chunks.add(remaining.substring(0, cut).trim())
+            remaining = remaining.substring(cut).trimStart()
+        }
+        if (remaining.isNotBlank()) chunks.add(remaining)
+
+        chunks.forEachIndexed { index, chunk ->
+            tts?.speak(
+                chunk,
+                if (index == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD,
+                null,
+                "jarvis_long_read_$index"
+            )
+        }
+    }
+
     fun stopSpeaking() {
         tts?.stop()
     }
