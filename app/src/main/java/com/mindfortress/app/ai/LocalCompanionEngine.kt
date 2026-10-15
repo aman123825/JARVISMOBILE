@@ -8,6 +8,7 @@ import com.mindfortress.app.access.PhoneAccessStore
 import com.mindfortress.app.access.PhoneReadCommandParser
 import com.mindfortress.app.access.PhoneReadIntent
 import com.mindfortress.app.service.AppBlockerAccessibilityService
+import com.mindfortress.app.service.JarvisScreenReaderAccessibilityService
 import com.mindfortress.app.service.JarvisNotificationListenerService
 import org.json.JSONObject
 import java.io.File
@@ -170,7 +171,7 @@ class LocalCompanionEngine(private val context: Context) {
             }
 
             PhoneReadIntent.CURRENT_SCREEN -> {
-                if (!AppBlockerAccessibilityService.isAccessibilityServiceEnabled(context)) {
+                if (!JarvisScreenReaderAccessibilityService.isAccessibilityServiceEnabled(context)) {
                     "Screen reading access is not enabled. In the JARVIS HUD, tap SCREEN READING ACCESS and enable the JARVIS accessibility service in Android settings."
                 } else {
                     val snapshot = PhoneAccessStore.latestScreen()
