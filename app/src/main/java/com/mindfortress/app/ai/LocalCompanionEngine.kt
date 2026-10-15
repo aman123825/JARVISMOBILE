@@ -4,6 +4,11 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.mindfortress.app.data.PreferencesManager
+import com.mindfortress.app.access.PhoneAccessStore
+import com.mindfortress.app.access.PhoneReadCommandParser
+import com.mindfortress.app.access.PhoneReadIntent
+import com.mindfortress.app.service.AppBlockerAccessibilityService
+import com.mindfortress.app.service.JarvisNotificationListenerService
 import org.json.JSONObject
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +73,10 @@ class LocalCompanionEngine(private val context: Context) {
         val clean = userInput.trim()
         if (clean.isEmpty()) return processInput(clean, speakOutput)
 
+        // Read-only phone information comes only from explicitly enabled Android services.
+        // The language model must not hallucinate access to notifications or screen content.
+        handlePhoneReadRequest(clean, speakOutput)?.let { return it }
+
         // All recognized phone actions stay on the deterministic broker path.
         if (PermissionFirstActionBroker.propose(clean) != null) {
             return processInput(clean, speakOutput)
@@ -106,6 +115,84 @@ class LocalCompanionEngine(private val context: Context) {
                     "Using the offline JARVIS fallback instead.\n\n${fallback.replyText}"
             )
         }
+    }
+
+    private fun handlePhoneReadRequest(
+        command: String,
+        speakOutput: Boolean
+    ): CompanionResponse? {
+        val intent = PhoneReadCommandParser.parse(command) ?: return null
+
+        val response = when (intent) {
+            PhoneReadIntent.LATEST_WHATSAPP_MESSAGE -> {
+                if (!JarvisNotificationListenerService.isNotificationAccessEnabled(context)) {
+                    "Notification access is not enabled. In the JARVIS HUD, tap NOTIFICATION ACCESS and enable JARVIS in Android settings, then ask me again."
+                } else {
+                    val item = PhoneAccessStore.latestNotification("com.whatsapp")
+                    if (item == null) {
+                        "I do not have a recent WhatsApp notification preview in my in-memory cache. Android does not grant direct access to WhatsApp's private chat database. Ask me again after a WhatsApp notification arrives while access is enabled."
+                    } else {
+                        val content = listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(". ")
+                        "Latest WhatsApp notification preview from ${item.appLabel}: ${content.ifBlank { "No readable preview text was exposed." }}. This is the notification content Android exposed; it may be grouped, shortened, or hidden by WhatsApp privacy settings."
+                    }
+                }
+            }
+
+            PhoneReadIntent.LATEST_NOTIFICATION -> {
+                if (!JarvisNotificationListenerService.isNotificationAccessEnabled(context)) {
+                    "Notification access is not enabled. In the JARVIS HUD, tap NOTIFICATION ACCESS and enable JARVIS in Android settings first."
+                } else {
+                    val item = PhoneAccessStore.latestNotification()
+                    if (item == null) {
+                        "I do not have a recent notification preview in memory yet. Ask me again after a notification arrives."
+                    } else {
+                        val content = listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(". ")
+                        "Latest notification from ${item.appLabel}: ${content.ifBlank { "No readable preview text was exposed." }}"
+                    }
+                }
+            }
+
+            PhoneReadIntent.RECENT_NOTIFICATIONS -> {
+                if (!JarvisNotificationListenerService.isNotificationAccessEnabled(context)) {
+                    "Notification access is not enabled. In the JARVIS HUD, tap NOTIFICATION ACCESS and enable JARVIS in Android settings first."
+                } else {
+                    val items = PhoneAccessStore.recentNotifications(8)
+                    if (items.isEmpty()) {
+                        "No recent notification previews are in memory yet. Ask me again after notifications arrive."
+                    } else {
+                        val details = items.mapIndexed { index, item ->
+                            "${index + 1}. ${item.appLabel}. " +
+                                listOf(item.title, item.text).filter { it.isNotBlank() }.joinToString(". ")
+                        }.joinToString("\\n")
+                        "Recent notification previews available on this device:\\n${details}\\nThese are previews, not a complete history of every app's messages."
+                    }
+                }
+            }
+
+            PhoneReadIntent.CURRENT_SCREEN -> {
+                if (!AppBlockerAccessibilityService.isAccessibilityServiceEnabled(context)) {
+                    "Screen reading access is not enabled. In the JARVIS HUD, tap SCREEN READING ACCESS and enable the JARVIS accessibility service in Android settings."
+                } else {
+                    val snapshot = PhoneAccessStore.latestScreen()
+                    if (snapshot == null) {
+                        "I do not have a recent screen text snapshot. Open the app you want me to read, wait for its visible content to load, then say 'Hey Jarvis, read this screen'. Screen text is kept in memory briefly and not saved to disk."
+                    } else {
+                        val label = runCatching {
+                            val info = context.packageManager.getApplicationInfo(snapshot.packageName, 0)
+                            context.packageManager.getApplicationLabel(info).toString()
+                        }.getOrDefault(snapshot.packageName)
+                        "Readable text from the last screen in ${label}:\\n${snapshot.text}\\nPassword fields are excluded. This is visible accessibility text; images, canvas-only content, and private app databases may not be exposed."
+                    }
+                }
+            }
+        }
+
+        if (speakOutput && response.isNotBlank()) actionExecutor.speak(response.take(5_000))
+        return CompanionResponse(
+            replyText = response,
+            speechText = response.take(5_000),
+            executedAction = "PHONE_READ_ONLY_${intent.name}"
+        )
     }
 
     /**
