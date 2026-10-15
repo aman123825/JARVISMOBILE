@@ -146,26 +146,26 @@ private fun JarvisChatScreen(engine: LocalModelEngine) {
         busy = true
         status = "Generating locally…"
         progressText = "Loading the local model if this is the first request."
-        messages.add(ChatLine("Thinking…", false))
+        val responseIndex = messages.size
+        messages.add(ChatLine("Loading model / starting generation…", false))
+        progressText = "The first local load can take longer. Generated text will appear as it arrives."
         scope.launch {
             try {
-                val reply = engine.respond(prompt)
-                if (messages.lastOrNull()?.text == "Thinking…") messages.removeAt(messages.lastIndex)
-                messages.add(ChatLine(reply, false))
+                val reply = engine.respond(prompt) { partial ->
+                    if (responseIndex < messages.size) {
+                        messages[responseIndex] = ChatLine(partial.ifBlank { "Generating…" }, false)
+                    }
+                }
+                if (responseIndex < messages.size) messages[responseIndex] = ChatLine(reply, false)
                 status = "Ready · on-device inference"
             } catch (error: Throwable) {
-                if (messages.lastOrNull()?.text == "Thinking…") messages.removeAt(messages.lastIndex)
                 val reason = error.message ?: error.javaClass.simpleName
-                messages.add(
-                    ChatLine(
-                        if (reason.contains("Timed out", ignoreCase = true)) {
-                            "The local response exceeded 60 seconds and was stopped. The UI is still responsive; check model compatibility and retry."
-                        } else {
-                            "Local AI error: $reason"
-                        },
-                        false
-                    )
-                )
+                val failure = if (reason.contains("Timed out", ignoreCase = true)) {
+                    "The local response exceeded 60 seconds and was stopped. The UI is still responsive; check model compatibility and retry."
+                } else {
+                    "Local AI error: $reason"
+                }
+                if (responseIndex < messages.size) messages[responseIndex] = ChatLine(failure, false)
                 status = "Not ready · error shown in chat"
             } finally {
                 busy = false
