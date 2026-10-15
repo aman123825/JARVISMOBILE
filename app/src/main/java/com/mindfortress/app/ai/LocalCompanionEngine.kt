@@ -188,10 +188,10 @@ class LocalCompanionEngine(private val context: Context) {
             }
         }
 
-        if (speakOutput && response.isNotBlank()) actionExecutor.speak(response.take(5_000))
+        if (speakOutput && response.isNotBlank()) actionExecutor.speakLongText(response)
         return CompanionResponse(
             replyText = response,
-            speechText = response.take(5_000),
+            speechText = response,
             executedAction = "PHONE_READ_ONLY_${intent.name}"
         )
     }
