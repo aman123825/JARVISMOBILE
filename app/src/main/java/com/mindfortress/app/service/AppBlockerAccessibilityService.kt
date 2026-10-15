@@ -8,6 +8,7 @@ import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.mindfortress.app.data.MindFortressDatabaseHelper
+import com.mindfortress.app.access.PhoneAccessStore
 import com.mindfortress.app.data.PreferencesManager
 import com.mindfortress.app.ui.screens.BlockedOverlayActivity
 
@@ -116,6 +117,52 @@ class AppBlockerAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
             elements.addAll(inspectNodeHierarchy(child, depth + 1))
         }
         return elements
+    }
+
+    private fun isReadableAppPackage(packageName: String): Boolean {
+        val lower = packageName.lowercase(Locale.ROOT)
+        return !lower.contains("inputmethod") &&
+            !lower.contains("keyboard") &&
+            lower != "com.android.systemui" &&
+            lower != "com.samsung.android.honeyboard" &&
+            lower != "com.google.android.inputmethod.latin"
+    }
+
+    private fun captureVisibleScreenText(eventPackageName: String) {
+        try {
+            val root = rootInActiveWindow ?: return
+            val rootPackage = root.packageName?.toString() ?: eventPackageName
+            if (rootPackage == applicationContext.packageName || !isReadableAppPackage(rootPackage)) return
+
+            val pieces = LinkedHashSet<String>()
+            collectReadableText(root, pieces, 0)
+            val text = pieces.joinToString("\n").take(12_000)
+            if (text.isNotBlank()) PhoneAccessStore.updateScreen(rootPackage, text)
+        } catch (error: Exception) {
+            Log.d(TAG, "Could not capture readable screen text: ${error.message}")
+        }
+    }
+
+    private fun collectReadableText(
+        node: AccessibilityNodeInfo?,
+        output: MutableSet<String>,
+        depth: Int
+    ) {
+        if (node == null || depth > 20 || output.sumOf { it.length } >= 12_000) return
+
+        // Password fields are intentionally excluded from the screen reader cache.
+        if (runCatching { node.isPassword }.getOrDefault(false)) return
+
+        if (runCatching { node.isVisibleToUser }.getOrDefault(true)) {
+            node.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let(output::add)
+            node.contentDescription?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let(output::add)
+        }
+
+        for (index in 0 until node.childCount) {
+            val child = runCatching { node.getChild(index) }.getOrNull() ?: continue
+            collectReadableText(child, output, depth + 1)
+            if (output.sumOf { it.length } >= 12_000) break
+        }
     }
 
     private fun handleSurgicalPackage(packageName: String): Boolean {
@@ -229,9 +276,15 @@ class AppBlockerAccessibilityService : AccessibilityService(), TextToSpeech.OnIn
             eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
             eventType != AccessibilityEvent.TYPE_VIEW_SCROLLED) return
 
-        if (!prefs.isAppBlockerActive && !prefs.isMonkModeActive) return
-
         val packageName = event.packageName?.toString() ?: rootInActiveWindow?.packageName?.toString() ?: return
+
+        // Keep a short-lived, memory-only snapshot of the last non-JARVIS app.
+        // The cache is intentionally separate from the distraction-blocker toggle.
+        if (packageName != applicationContext.packageName && isReadableAppPackage(packageName)) {
+            captureVisibleScreenText(packageName)
+        }
+
+        if (!prefs.isAppBlockerActive && !prefs.isMonkModeActive) return
         if (packageName == applicationContext.packageName) return
 
         // 1. Surgical package inspection for YouTube & Instagram
