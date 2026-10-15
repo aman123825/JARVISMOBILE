@@ -105,10 +105,12 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
     private var lastNoiseAlertTime: Long = 0L
     private var lastCircadianAlertTime: Long = 0L
 
-    fun startSentinel() {
-        if (isRecording) return
+    /** Registers hardware sensors without opening a second microphone capture stream. */
+    fun startSensorMonitoring() {
+        registerSensors()
+    }
 
-        // 1. Register Hardware Sensors (Light & Accelerometer)
+    private fun registerSensors() {
         try {
             if (prefs.isLightSensingActive) {
                 lightSensor?.let { sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
@@ -119,6 +121,11 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
         } catch (e: Throwable) {
             Log.w(TAG, "Sensor registration notice: ${e.message}")
         }
+    }
+
+    fun startSentinel() {
+        if (isRecording) return
+        registerSensors()
 
         // 2. Start Continuous Ambient Audio Recording Loop ONLY if explicit permission granted AND enabled
         if (!prefs.isAcousticRadarActive) {
@@ -134,6 +141,11 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
 
             if (!hasAudioPermission) {
                 Log.i(TAG, "Audio recording permission not yet granted; ambient radar standing by.")
+                return
+            }
+
+            if (!MicrophoneCaptureArbiter.tryAcquire(this)) {
+                Log.i(TAG, "Microphone is already leased by another JARVIS audio component; acoustic sampling will use shared audio-level updates.")
                 return
             }
 
@@ -189,12 +201,28 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
                         } catch (ignored: Throwable) {}
                         audioRecord = null
                         isRecording = false
+                        MicrophoneCaptureArbiter.release(this@AmbientAcousticSentinel)
                     }
                 }
+            } else {
+                runCatching { audioRecord?.release() }
+                audioRecord = null
+                MicrophoneCaptureArbiter.release(this)
+                Log.w(TAG, "AudioRecord did not initialize; ambient audio sampling disabled.")
             }
         } catch (e: SecurityException) {
+            runCatching { audioRecord?.stop() }
+            runCatching { audioRecord?.release() }
+            audioRecord = null
+            isRecording = false
+            MicrophoneCaptureArbiter.release(this)
             Log.w(TAG, "Audio recording permission missing: ${e.message}")
         } catch (e: Throwable) {
+            runCatching { audioRecord?.stop() }
+            runCatching { audioRecord?.release() }
+            audioRecord = null
+            isRecording = false
+            MicrophoneCaptureArbiter.release(this)
             Log.e(TAG, "Error starting Ambient Sentinel: ${e.message}")
         }
     }
@@ -284,6 +312,7 @@ class AmbientAcousticSentinel(private val context: Context) : SensorEventListene
             audioRecord?.release()
         } catch (ignored: Throwable) {}
         audioRecord = null
+        MicrophoneCaptureArbiter.release(this)
         try {
             sensorManager?.unregisterListener(this)
         } catch (ignored: Throwable) {}

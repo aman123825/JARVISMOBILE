@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.mindfortress.app.ai.HandsFreeVoiceService
 import com.mindfortress.app.data.PreferencesManager
 
 class BootReceiver : BroadcastReceiver() {
@@ -42,14 +41,12 @@ class BootReceiver : BroadcastReceiver() {
                 }
             }
 
-            // 3. Restore Hands-Free Voice Listener if enabled
+            // 3. Microphone capture cannot be reliably started from BOOT_COMPLETED on
+            // modern Android releases because RECORD_AUDIO is a while-in-use permission.
+            // Keep the preference, but require the user to open JARVIS or enable listening
+            // from a visible activity before the microphone foreground service is started.
             if (prefs.isHandsFreeVoiceActive) {
-                try {
-                    HandsFreeVoiceService.start(context)
-                    Log.i(TAG, "HandsFreeVoiceService auto-started on boot.")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error starting Hands-Free Voice on boot: ${e.message}")
-                }
+                Log.i(TAG, "Hands-free is enabled but remains stopped after boot; open JARVIS to resume microphone listening.")
             }
         }
     }

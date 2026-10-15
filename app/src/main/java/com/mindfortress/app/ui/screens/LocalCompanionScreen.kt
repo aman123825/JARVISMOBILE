@@ -1,13 +1,9 @@
 package com.mindfortress.app.ui.screens
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mindfortress.app.ai.HandsFreeVoiceService
 import com.mindfortress.app.ai.LocalCompanionEngine
+import com.mindfortress.app.ai.MicrophoneCaptureArbiter
+import com.mindfortress.app.ai.NativeSovereignVoiceEngine
 import com.mindfortress.app.ai.VoiceBiometricManager
 import com.mindfortress.app.data.PreferencesManager
 import com.mindfortress.app.theme.AmberFocus
@@ -39,6 +37,7 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -51,12 +50,15 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager.getInstance(context) }
     val companionEngine = remember { LocalCompanionEngine(context) }
+    val localLlmRuntime = remember { companionEngine.localLlmRuntime }
     val voiceBiometric = remember { VoiceBiometricManager(context) }
+    val voiceEngine = remember { NativeSovereignVoiceEngine(context) }
+    val enrollmentMicOwner = remember { Any() }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     var inputText by remember { mutableStateOf("") }
-    var isHandsFreeActive by remember { mutableStateOf(false) }
+    var isHandsFreeActive by remember { mutableStateOf(prefs.isHandsFreeVoiceActive) }
     var isVoiceEnrolled by remember { mutableStateOf(voiceBiometric.isEnrolled) }
     var isRecordingEnrollment by remember { mutableStateOf(false) }
     var enrollmentCountdown by remember { mutableStateOf(3) }
@@ -66,7 +68,7 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
     val messages = remember {
         mutableStateListOf(
             ChatMessage(
-                text = "Hello my friend. I am running locally on your Samsung Galaxy S25 as your teacher, companion, and zero-touch focus guardian.\n\nOnce your voice is registered, you never have to touch your phone: just speak, and I will execute tasks exclusively for your voice.",
+                text = "Hello! JARVIS can use its bundled on-device speech model for voice input and local captions.\n\nWake-word detection is not proof of speaker identity, and voice enrollment is experimental. Keep confirmations enabled for sensitive actions.",
                 isUser = false
             )
         )
@@ -76,11 +78,35 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
 
     var isListeningInApp by remember { mutableStateOf(false) }
     var speechHint by remember { mutableStateOf("") }
+    var importedModelPath by remember { mutableStateOf(localLlmRuntime.configuredModelPath) }
+    var isModelImporting by remember { mutableStateOf(false) }
+    var modelStatus by remember {
+        mutableStateOf(
+            if (localLlmRuntime.isModelConfigured) "Local model selected; it will load on the first open-ended question."
+            else "No local language model installed. Built-in commands and topic rules still work."
+        )
+    }
 
-    val speechRecognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else null
+    val modelPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isModelImporting = true
+                modelStatus = "Importing model into app-private storage. Large models can take a while."
+                try {
+                    val imported = localLlmRuntime.importModel(uri)
+                    importedModelPath = imported.absolutePath
+                    modelStatus = "Imported ${imported.name}. First response will load the model on CPU."
+                    Toast.makeText(context, "Local language model imported.", Toast.LENGTH_SHORT).show()
+                } catch (error: Throwable) {
+                    modelStatus = error.message ?: "Model import failed."
+                    Toast.makeText(context, modelStatus, Toast.LENGTH_LONG).show()
+                } finally {
+                    isModelImporting = false
+                }
+            }
+        }
     }
 
     fun sendMessage(text: String) {
@@ -89,64 +115,50 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
 
         messages.add(ChatMessage(trimmed, isUser = true))
         inputText = ""
+        isListeningInApp = false
+        speechHint = ""
 
         scope.launch {
-            val res = companionEngine.processInput(trimmed)
-            messages.add(ChatMessage(res.replyText, isUser = false))
-            listState.animateScrollToItem(messages.size - 1)
+            // Pause voice capture before reasoning/TTS to prevent feedback and mic contention.
+            runCatching { voiceEngine.pause() }
+            if (prefs.isHandsFreeVoiceActive) {
+                HandsFreeVoiceService.stop(context)
+                delay(450)
+            }
 
-            // Auto-speak response
-            companionEngine.actionExecutor.speak(res.replyText)
-            isTtsSpeaking = true
+            try {
+                val res = companionEngine.processInput(trimmed, speakOutput = false)
+                messages.add(ChatMessage(res.replyText, isUser = false))
+                listState.animateScrollToItem(messages.size - 1)
+
+                val speech = res.speechText.ifBlank { res.replyText }
+                if (speech.isNotBlank()) {
+                    companionEngine.actionExecutor.speak(speech)
+                    isTtsSpeaking = true
+                }
+                delay(4000)
+            } catch (error: Throwable) {
+                messages.add(ChatMessage("I couldn't complete that request: ${error.message ?: "unknown error"}", isUser = false))
+            } finally {
+                if (prefs.isHandsFreeVoiceActive) HandsFreeVoiceService.start(context)
+            }
         }
     }
 
     fun startListeningInternal() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                isListeningInApp = true
-                speechHint = "Listening... Speak your command"
-            }
-            override fun onBeginningOfSpeech() {
-                speechHint = "Listening to your voice..."
-            }
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                isListeningInApp = false
-                speechHint = ""
-            }
-            override fun onError(error: Int) {
-                isListeningInApp = false
-                speechHint = ""
-            }
-            override fun onResults(results: Bundle?) {
-                isListeningInApp = false
-                speechHint = ""
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = matches?.firstOrNull()
-                if (!text.isNullOrBlank()) {
-                    sendMessage(text)
-                }
-            }
-            override fun onPartialResults(partialResults: Bundle?) {
-                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val partial = matches?.firstOrNull()
-                if (!partial.isNullOrBlank()) {
-                    inputText = partial
-                }
-            }
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        speechRecognizer?.startListening(intent)
+        if (isListeningInApp) return
         isListeningInApp = true
-        speechHint = "Listening..."
+        speechHint = "Preparing on-device speech recognition…"
+        inputText = ""
+
+        scope.launch {
+            if (prefs.isHandsFreeVoiceActive) {
+                HandsFreeVoiceService.stop(context)
+                delay(450)
+            }
+            voiceEngine.forceWake()
+            speechHint = "Listening locally. Speak your question, then pause."
+        }
     }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
@@ -163,22 +175,32 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
         if (isRecordingEnrollment) return
         isRecordingEnrollment = true
         enrollmentCountdown = 3
-        Toast.makeText(context, "Recording voice profile... Please speak clearly for 3 seconds.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Recording a local voice profile (experimental). Please speak clearly for 3 seconds.", Toast.LENGTH_SHORT).show()
 
         scope.launch {
+            runCatching { voiceEngine.pause() }
+            if (prefs.isHandsFreeVoiceActive) {
+                HandsFreeVoiceService.stop(context)
+                delay(500)
+            }
+
             val sampleRate = 16000
-            val totalSamples = sampleRate * 3 // 48,000 samples for 3 seconds
+            val totalSamples = sampleRate * 3
             val recordedData = ShortArray(totalSamples)
 
             val success = withContext(Dispatchers.IO) {
-                val minBufferSize = AudioRecord.getMinBufferSize(
-                    sampleRate,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT
-                ).coerceAtLeast(sampleRate * 2)
+                if (!MicrophoneCaptureArbiter.tryAcquire(enrollmentMicOwner)) {
+                    Log.w("LocalCompanionScreen", "Enrollment could not acquire exclusive microphone lease")
+                    return@withContext false
+                }
 
                 var record: AudioRecord? = null
                 try {
+                    val minBufferSize = AudioRecord.getMinBufferSize(
+                        sampleRate,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT
+                    ).coerceAtLeast(sampleRate * 2)
                     record = AudioRecord(
                         MediaRecorder.AudioSource.MIC,
                         sampleRate,
@@ -196,7 +218,6 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                     var samplesRead = 0
                     val readBuffer = ShortArray(1024)
                     val startTime = System.currentTimeMillis()
-
                     while (samplesRead < totalSamples && isRecordingEnrollment) {
                         val toRead = minOf(readBuffer.size, totalSamples - samplesRead)
                         val read = record.read(readBuffer, 0, toRead)
@@ -205,22 +226,16 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                             samplesRead += read
                         }
                         val elapsed = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-                        val remaining = maxOf(1, 3 - elapsed)
-                        withContext(Dispatchers.Main) {
-                            enrollmentCountdown = remaining
-                        }
+                        withContext(Dispatchers.Main) { enrollmentCountdown = maxOf(1, 3 - elapsed) }
                     }
-                    true
+                    samplesRead == totalSamples
                 } catch (e: Exception) {
-                    Log.e("LocalCompanionScreen", "Error during voice enrollment recording: ${e.message}")
+                    Log.e("LocalCompanionScreen", "Error during local voice enrollment recording: ${e.message}")
                     false
                 } finally {
-                    try {
-                        record?.stop()
-                        record?.release()
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
+                    runCatching { record?.stop() }
+                    runCatching { record?.release() }
+                    MicrophoneCaptureArbiter.release(enrollmentMicOwner)
                 }
             }
 
@@ -228,14 +243,18 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                 val enrolled = voiceBiometric.enrollSpeaker(recordedData)
                 if (enrolled) {
                     isVoiceEnrolled = true
-                    Toast.makeText(context, "Voice biometric enrolled successfully!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Voice profile saved locally. It is not a secure identity factor.", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(context, "Enrollment rejected: Voice too quiet or silence detected. Please speak louder.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Enrollment rejected: signal too quiet or silence detected. Please try again in a quiet room.", Toast.LENGTH_LONG).show()
                 }
             } else {
-                Toast.makeText(context, "Microphone recording failed during enrollment.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Microphone recording failed or another feature still owns the microphone.", Toast.LENGTH_SHORT).show()
             }
             isRecordingEnrollment = false
+            if (prefs.isHandsFreeVoiceActive) {
+                delay(450)
+                HandsFreeVoiceService.start(context)
+            }
         }
     }
 
@@ -249,12 +268,38 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
         }
     }
 
-    DisposableEffect(Unit) {
+    LaunchedEffect(voiceEngine) {
+        voiceEngine.partialTranscript.collect { partial ->
+            if (isListeningInApp && partial.isNotBlank()) {
+                inputText = partial
+                speechHint = "Live on-device transcription…"
+            }
+        }
+    }
+
+    LaunchedEffect(voiceEngine) {
+        voiceEngine.commands.collect { command ->
+            if (isListeningInApp && command.isNotBlank()) sendMessage(command)
+        }
+    }
+
+    LaunchedEffect(voiceEngine) {
+        voiceEngine.error.collect { error ->
+            if (isListeningInApp && !error.isNullOrBlank()) {
+                isListeningInApp = false
+                speechHint = "Local microphone error: $error"
+                if (prefs.isHandsFreeVoiceActive) {
+                    delay(350)
+                    HandsFreeVoiceService.start(context)
+                }
+            }
+        }
+    }
+
+    DisposableEffect(voiceEngine) {
         onDispose {
-            try {
-                speechRecognizer?.destroy()
-            } catch (e: Exception) {
-                // fallback
+            voiceEngine.closeAsync {
+                if (prefs.isHandsFreeVoiceActive) HandsFreeVoiceService.start(context)
             }
         }
     }
@@ -274,7 +319,7 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                             )
                         }
                         Text(
-                            "⚡ Snapdragon 8 Elite NPU | Zero-Touch Registered Voice",
+                            "ON-DEVICE SHERPA-ONNX | LOCAL VOICE INPUT",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -313,7 +358,7 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Hands-Free Voice Biometric Controller Banner
+            // Hands-free voice control status
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -410,15 +455,94 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                             checked = isHandsFreeActive,
                             onCheckedChange = { checked ->
                                 isHandsFreeActive = checked
+                                prefs.isHandsFreeVoiceActive = checked
                                 if (checked) {
                                     HandsFreeVoiceService.start(context)
-                                    Toast.makeText(context, "Hands-Free listener active. Speak commands without touching phone!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Hands-free listening requested. A visible notification appears while microphone capture is active.", Toast.LENGTH_LONG).show()
                                 } else {
                                     HandsFreeVoiceService.stop(context)
-                                    Toast.makeText(context, "Hands-Free listener stopped.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Hands-free listening stopped.", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            // Real on-device LLM is optional: the model file is selected and installed by the user.
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, FortressTeal.copy(alpha = 0.55f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🧠", fontSize = 19.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("On-device LLM", fontWeight = FontWeight.Bold, color = FortressTeal)
+                            Text(
+                                if (importedModelPath.isNotBlank()) importedModelPath.substringAfterLast('/') else "No .litertlm model selected",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        if (isModelImporting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    }
+                    Text(
+                        modelStatus,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = !isModelImporting,
+                            onClick = { modelPickerLauncher.launch(arrayOf("*/*")) }
+                        ) {
+                            Text(if (importedModelPath.isBlank()) "Import model" else "Replace model", fontSize = 12.sp)
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !isModelImporting && importedModelPath.isNotBlank(),
+                            onClick = {
+                                scope.launch {
+                                    isModelImporting = true
+                                    try {
+                                        localLlmRuntime.removeModel()
+                                        importedModelPath = ""
+                                        modelStatus = "Model removed. Built-in commands and local rules remain available."
+                                    } catch (error: Throwable) {
+                                        modelStatus = error.message ?: "Could not remove the model."
+                                    } finally {
+                                        isModelImporting = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Remove", fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://huggingface.co/litert-community")
+                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }.onFailure { modelStatus = "Couldn't open the model catalogue: ${it.message}" }
+                            }
+                        ) {
+                            Text("Models", fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -519,9 +643,15 @@ fun LocalCompanionScreen(onBack: () -> Unit) {
                     IconButton(
                         onClick = {
                             if (isListeningInApp) {
-                                speechRecognizer?.stopListening()
-                                isListeningInApp = false
-                                speechHint = ""
+                                scope.launch {
+                                    runCatching { voiceEngine.pause() }
+                                    isListeningInApp = false
+                                    speechHint = "Microphone paused."
+                                    if (prefs.isHandsFreeVoiceActive) {
+                                        delay(350)
+                                        HandsFreeVoiceService.start(context)
+                                    }
+                                }
                             } else {
                                 val hasPermission = ContextCompat.checkSelfPermission(
                                     context,

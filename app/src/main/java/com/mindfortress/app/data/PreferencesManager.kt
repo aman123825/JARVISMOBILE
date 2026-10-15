@@ -60,6 +60,16 @@ class PreferencesManager(context: Context) {
         get() = prefs.getBoolean(KEY_HANDS_FREE_VOICE, true)
         set(value) = prefs.edit().putBoolean(KEY_HANDS_FREE_VOICE, value).apply()
 
+    /** When enabled, assistant reasoning never falls back to cloud APIs or a LAN brain. */
+    var isSovereignOfflineMode: Boolean
+        get() = prefs.getBoolean(KEY_SOVEREIGN_OFFLINE_MODE, true)
+        set(value) = prefs.edit().putBoolean(KEY_SOVEREIGN_OFFLINE_MODE, value).apply()
+
+    /** App-private path for an explicitly imported LiteRT-LM model. */
+    var localLlmModelPath: String
+        get() = prefs.getString(KEY_LOCAL_LLM_MODEL_PATH, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LOCAL_LLM_MODEL_PATH, value).apply()
+
     var brainServerUrl: String
         get() = prefs.getString(KEY_BRAIN_SERVER_URL, "http://10.0.2.2:8080") ?: "http://10.0.2.2:8080"
         set(value) = prefs.edit().putString(KEY_BRAIN_SERVER_URL, value).apply()
@@ -214,6 +224,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_SITUATIONAL_GUARDIAN = "key_situational_guardian"
         private const val KEY_INVISIBLE_INTERVENTION = "key_invisible_intervention"
         private const val KEY_HANDS_FREE_VOICE = "key_hands_free_voice"
+        private const val KEY_SOVEREIGN_OFFLINE_MODE = "key_sovereign_offline_mode"
+        private const val KEY_LOCAL_LLM_MODEL_PATH = "key_local_llm_model_path"
         private const val KEY_BRAIN_SERVER_URL = "key_brain_server_url"
         private const val KEY_CUSTOM_BLOCKED_PACKAGES = "key_custom_blocked_packages"
         private const val KEY_BLOCKED_COUNT = "key_blocked_count"

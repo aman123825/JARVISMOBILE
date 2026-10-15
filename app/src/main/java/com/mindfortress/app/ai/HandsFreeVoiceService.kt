@@ -55,7 +55,11 @@ class HandsFreeVoiceService : Service() {
         }
 
         isDestroyedService = false
-        startForegroundNotification()
+        if (!startForegroundNotification()) {
+            Log.w(TAG, "Foreground microphone notification could not start; refusing background capture.")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startListening()
         return START_STICKY
     }
@@ -90,12 +94,11 @@ class HandsFreeVoiceService : Service() {
     private fun stopListening() {
         commandCollectionJob?.cancel()
         commandCollectionJob = null
-        serviceScope.launch {
-            runCatching { voiceEngine.close() }
-        }
+        // Use the engine-owned scope; onDestroy cancels serviceScope immediately.
+        voiceEngine.closeAsync()
     }
 
-    private fun startForegroundNotification() {
+    private fun startForegroundNotification(): Boolean {
         val channelId = "hands_free_jarvis_channel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -103,7 +106,7 @@ class HandsFreeVoiceService : Service() {
                 "Jarvis Hands-Free Voice Listener",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Always-listening hands-free controller verifying registered voice"
+                description = "Visible notification for on-device wake-word listening"
             }
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
@@ -117,8 +120,8 @@ class HandsFreeVoiceService : Service() {
 
         val notification: Notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setContentTitle("Jarvis Hands-Free Guard Active")
-                .setContentText("Listening locally for 'Hey Jarvis' via Sherpa-ONNX. Zero cloud dependency.")
+                .setContentTitle("JARVIS Hands-Free Listening")
+                .setContentText("Listening locally for Hey Jarvis. Tap to open JARVIS or stop listening in the app.")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true)
@@ -134,14 +137,16 @@ class HandsFreeVoiceService : Service() {
                 .build()
         }
 
-        try {
+        return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
+            true
         } catch (e: Exception) {
-            Log.w(TAG, "Hands-Free listener foreground start fallback: ${e.message}")
+            Log.w(TAG, "Hands-Free listener foreground start failed: ${e.message}")
+            false
         }
     }
 
@@ -160,6 +165,10 @@ class HandsFreeVoiceService : Service() {
         private const val NOTIFICATION_ID = 2002
 
         fun start(context: Context) {
+            if (ForegroundVoiceSession.hasActiveUiSession()) {
+                Log.i(TAG, "Foreground JARVIS screen owns microphone; background listener start deferred.")
+                return
+            }
             val hasMic = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             if (!hasMic) {
                 Log.w(TAG, "Cannot start HandsFreeVoiceService: RECORD_AUDIO permission not granted.")
@@ -266,7 +275,97 @@ class HandsFreeVoiceService : Service() {
                     lower.contains("drill") ||
                     lower.contains("ambition") ||
                     lower.contains("shield status") ||
-                    lower.contains("how many blocked")
+                    lower.contains("how many blocked") ||
+                    lower.startsWith("set alarm") ||
+                    lower.startsWith("create alarm") ||
+                    lower.startsWith("wake me") ||
+                    lower.contains("timer for") ||
+                    lower.startsWith("timer ") ||
+                    lower.startsWith("remind me in") ||
+                    lower.startsWith("call ") ||
+                    lower.startsWith("dial ") ||
+                    lower.startsWith("phone ") ||
+                    lower.startsWith("text ") ||
+                    lower.startsWith("sms ") ||
+                    lower.startsWith("message ") ||
+                    lower.startsWith("search ") ||
+                    lower.startsWith("google ") ||
+                    lower.startsWith("look up online ") ||
+                    lower.startsWith("find online ") ||
+                    lower.startsWith("visit ") ||
+                    lower.startsWith("go to ") ||
+                    lower.startsWith("navigate to ") ||
+                    lower.startsWith("directions to ") ||
+                    lower.startsWith("route to ") ||
+                    lower.startsWith("take me to ") ||
+                    lower.startsWith("open settings") ||
+                    lower.startsWith("open wifi settings") ||
+                    lower.startsWith("open wi-fi settings") ||
+                    lower.startsWith("open bluetooth settings") ||
+                    lower.startsWith("open sound settings") ||
+                    lower.startsWith("open display settings") ||
+                    lower.startsWith("open location settings") ||
+                    lower.startsWith("open battery settings") ||
+                    lower.startsWith("open accessibility settings") ||
+                    lower.startsWith("remember ") ||
+                    lower.startsWith("note that ") ||
+                    lower.startsWith("save note ") ||
+                    lower.startsWith("make a note ") ||
+                    lower.startsWith("forget memory ") ||
+                    lower.startsWith("forget note ") ||
+                    lower.startsWith("add task ") ||
+                    lower.startsWith("create task ") ||
+                    lower.startsWith("to-do ") ||
+                    lower.startsWith("complete task ") ||
+                    lower.startsWith("finish task ") ||
+                    lower == "show tasks" ||
+                    lower == "list tasks" ||
+                    lower == "my tasks" ||
+                    lower == "what are my tasks" ||
+                    lower == "show memories" ||
+                    lower == "list memories" ||
+                    lower == "what do you remember" ||
+                    lower == "show my notes" ||
+                    lower == "list notes" ||
+                    lower == "help" ||
+                    lower == "what can you do" ||
+                    lower == "what can jarvis do" ||
+                    lower.startsWith("research online ") ||
+                    lower.startsWith("research and summarize online ") ||
+                    lower.startsWith("find academic papers on ") ||
+                    lower.startsWith("find studies on ") ||
+                    lower.startsWith("literature review on ") ||
+                    lower.startsWith("set volume ") ||
+                    lower.startsWith("volume ") ||
+                    lower.contains("deep focus") ||
+                    lower.contains("focus lock") ||
+                    lower == "clear distractions" ||
+                    lower == "stop distractions" ||
+                    lower == "read notifications" ||
+                    lower == "read my notifications" ||
+                    lower == "show notifications" ||
+                    lower == "list notifications" ||
+                    lower == "what did i miss" ||
+                    lower == "summarize notifications" ||
+                    lower == "summarize my notifications" ||
+                    lower == "summarise my notifications" ||
+                    lower == "notification summary" ||
+                    lower == "clear notification history" ||
+                    lower == "what time is it" ||
+                    lower == "tell me the time" ||
+                    lower == "current time" ||
+                    lower == "time now" ||
+                    lower == "what is the time" ||
+                    lower == "battery status" ||
+                    lower == "what is my battery" ||
+                    lower == "what's my battery" ||
+                    lower == "battery percentage" ||
+                    lower == "how much battery is left" ||
+                    lower == "check battery" ||
+                    lower == "volume status" ||
+                    lower == "what is the volume" ||
+                    lower == "current volume" ||
+                    lower == "how loud is media volume"
 
             if (isDirectAction) {
                 return lower

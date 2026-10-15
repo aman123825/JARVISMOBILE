@@ -1,0 +1,60 @@
+# Hearing Companion and offline voice update
+
+## What is added
+
+- Adds a Hear destination in bottom navigation.
+- Provides a high-contrast live-caption screen with adjustable 20–38 sp text, recent phrase history, start/pause/stop controls, and phrase correction.
+- Uses the existing bundled Sherpa-ONNX streaming recognizer and the same on-device model assets as JARVIS command listening.
+- Adds user-authored phrase-to-phrase correction memory in app-private SharedPreferences. It saves text corrections only, not raw audio.
+- Separates the live-caption event flow from the command event flow. Captions are not emitted as executable commands.
+- Adds a process-wide microphone lease so the HUD, hearing screen, hands-free listener, and ambient sampler can coordinate one app-owned microphone capture.
+- Removes the HUD's redundant ambient AudioRecord start. Ambient sound levels continue to update from the voice engine's existing audio stream, while light/motion sensors can remain enabled separately.
+- Fixes a nested mutex acquisition in forceWake() and makes engine shutdown callbacks safe when UI or service coroutine scopes are cancelled.
+- Adds a Sovereign Offline Mode setting, enabled by default, that prevents LocalCompanionEngine's assistant reasoning path from using the configured cloud API or LAN brain. Turning it off explicitly re-enables those routes.
+- Adds a GitHub Actions workflow for JVM unit tests and debug APK assembly.
+
+## Command system and local language model
+
+The command layer is deterministic and typed; it does not ask a generative model to directly launch arbitrary actions. Supported commands include installed-app launch, browser search, opening a website, maps navigation, Clock alarm/timer intents, media-volume changes, strict focus mode/distraction shields, system Settings screens, dialer launch, SMS draft creation, local reminders, private notes/memories, and a persistent task list. Calling a number opens the dialer; an SMS request opens an editable draft. JARVIS does not silently place calls or send messages.
+
+**Open-ended reasoning uses LiteRT-LM only when the user imports a compatible `.litertlm` model.** The model is copied to app-private storage and is run through the LiteRT-LM Kotlin runtime. No LLM weights are bundled in this PR and there is no automatic model download. Choose a model small enough for the target phone's available RAM/storage and compatible with the current LiteRT-LM release. The default backend is CPU for compatibility; measure warm-up time, tokens/second, RAM, thermal load and battery before enabling acceleration. The existing Sherpa ONNX speech models do not supply general-purpose language reasoning.
+
+Additional local tools include querying the device's clock, battery percentage and media volume; setting media volume; and entering/exiting configured distraction-management workflows. An optional **notification digest** is available only after the user explicitly enables JARVIS in Android's Notification access settings. The listener keeps at most 60 title/text entries in process memory and does not write them to files or send them over the network. A user can request a basic digest or a summary using the imported local LLM, or clear this in-memory history. Notification bodies are treated as untrusted text, not executable instructions.
+
+The explicit command **`research online [topic]`** calls Wikipedia's search API and OpenAlex's scholarly-works API. These are discovery sources, not exhaustive Google results; abstracts may be unavailable and results require manual quality checks. When a compatible local LLM is installed, the retrieved sources are supplied for a synthesis that must cite [S1], [S2], etc. Even with Sovereign Offline Mode ON, this explicit online research command uses the internet by design. The ordinary **`search the web for [topic]`** command instead opens browser results.
+
+This feature does not make a model smarter than every researcher. Results still depend on the model family/size, prompt context, available source material, and validation by the user. A useful “research assistant” workflow should combine source discovery, citation-grounded synthesis, first-principles explanation, calculations/tests, and independent review.
+
+## Hearing support notes
+
+This feature is a visual speech-access aid, not a medical device, clinical treatment, or replacement for prescribed hearing aids. Transcription can be wrong, especially in noise, with overlapping speakers, low-volume speech, accents, or specialized vocabulary. Check important names, numbers, instructions, safety announcements, and academic details with the speaker or another trusted source.
+
+Raw audio is processed in memory by the local model and is not written to disk by this screen. Completed captions remain in the current screen's memory until the screen is cleared/disposed. Phrase correction mappings remain in app-private storage until removed or app data is cleared.
+
+Live caption mode is started explicitly by the user. It requires the microphone permission and uses the on-device Sherpa model files already configured by the app. This does not guarantee recognition below 200 ms; measure partial/final caption latency and word error rate on the target Galaxy S25 in quiet and noisy situations.
+
+## Offline mode boundary
+
+Sovereign Offline Mode gates assistant requests in LocalCompanionEngine; it does not remove the app's Android INTERNET permission or prove the entire application never makes network requests. Other app areas, such as explicitly configured connectivity tools or settings diagnostics, may still use networking. For a strict zero-network build, audit every network entry point, remove unneeded INTERNET permission/dependencies, and verify with Android's network security tooling before claiming the whole package is air-gapped.
+
+A local language model is still required for open-ended language reasoning. Streaming ASR model files are not an LLM and do not by themselves provide frontier-level reasoning. If no compatible LiteRT-LM model is installed, the existing on-device rules/knowledge fallback remains limited. Legacy GGUF/BIN file detection remains for compatibility but is not the new LiteRT-LM inference runtime.
+
+## Owner identity and background listening
+
+The wake phrase is not speaker identity. The existing voice-biometric enrollment screen is not currently wired into the streaming engine's command authorization path, so this change does **not** guarantee that only one enrolled person can issue commands. Do not treat the voice template as a secure authentication factor; use Android device authentication or explicit confirmation for sensitive actions. A future owner-only mode needs a validated speaker-embedding model, liveness/anti-replay testing, and fail-closed action gating before it can be described as identity-secure.
+
+On recent Android versions, microphone use must be started while the app is allowed to access the microphone and must remain visible through a microphone foreground-service notification for sustained background use. The boot receiver therefore does not start microphone capture directly after reboot; open JARVIS or enable hands-free listening from its visible UI to resume it. This is an OS permission boundary, not something a wake-word model can override.
+
+## Manual acceptance checklist
+
+1. Build and run on API 36 and Android 14/15 if supported by the project's target-device matrix.
+2. Open Hear, grant microphone permission, and verify captions appear without saying Hey Jarvis.
+3. Say ordinary sentences while Hear is active and verify none invoke phone actions.
+4. Correct a caption, stop/restart Hear, and check the correction is applied to future matching phrases.
+5. Start Hear while hands-free listening is enabled, then exit Hear. Confirm there is never a second AudioRecord conflict and the hands-free service restores only if its preference remains enabled.
+6. From the HUD, press push-to-talk repeatedly and confirm the command engine responds rather than hanging.
+7. Set Sovereign Offline Mode ON, configure a cloud key/LAN brain, and verify assistant prompts stay on-device; set it OFF and verify only the explicitly configured route becomes available.
+8. Inspect battery and thermal use during a 15-minute caption session. Quantify partial-caption latency, final-caption latency, word error rate, missed-speech rate, and false phrase correction rate.
+9. Test with hearing-support workflows in quiet and noisy settings. Do not assume transcripts are authoritative for emergencies or other high-stakes instructions.
+10. Confirm notification access is OFF by default; enable it manually, test read/summarize, clear captured history, and disable access afterward if not needed.
+11. Test app launch, volume, timers, reminders, dialer/message drafts, and focus-mode commands in each intended locale.

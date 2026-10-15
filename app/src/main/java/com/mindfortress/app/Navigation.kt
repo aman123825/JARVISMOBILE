@@ -122,7 +122,8 @@ fun MainNavigation(initialKey: NavKey = JarvisHudKey) {
                 JarvisMainHudScreen(
                     onNavigateToGym = { backStack.add(CognitiveGymKey) },
                     onNavigateToShieldRules = { backStack.add(ShieldRulesKey) },
-                    onNavigateToPurification = { backStack.add(CleanSlateKey) }
+                    onNavigateToPurification = { backStack.add(CleanSlateKey) },
+                    onNavigateToHearing = { backStack.add(HearingCompanionKey) }
                 )
             }
             entry<DashboardKey> {
@@ -135,6 +136,11 @@ fun MainNavigation(initialKey: NavKey = JarvisHudKey) {
             }
             entry<LocalCompanionKey> {
                 LocalCompanionScreen(
+                    onBack = { backStack.removeLastOrNull() }
+                )
+            }
+            entry<HearingCompanionKey> {
+                HearingCompanionScreen(
                     onBack = { backStack.removeLastOrNull() }
                 )
             }

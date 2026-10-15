@@ -60,6 +60,11 @@ class NativeSovereignVoiceEngine(context: Context) {
         UTTERANCE_COMPLETE
     }
 
+    enum class ListeningMode {
+        WAKE_WORD_COMMANDS,
+        LIVE_CAPTIONS
+    }
+
     companion object {
         const val SAMPLE_RATE = 16_000
         private const val FRAME_SAMPLES = 512 // 32 ms at 16 kHz; Silero VAD window size
@@ -81,11 +86,15 @@ class NativeSovereignVoiceEngine(context: Context) {
     }
 
     private val appContext = context.applicationContext
+    private val phraseCorrections = LocalPhraseCorrections(appContext)
     private val lifecycleMutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _state = MutableStateFlow(State.IDLE)
     val state: StateFlow<State> = _state.asStateFlow()
+
+    private val _listeningMode = MutableStateFlow(ListeningMode.WAKE_WORD_COMMANDS)
+    val listeningMode: StateFlow<ListeningMode> = _listeningMode.asStateFlow()
 
     /** Emits partial text while speaking; the last value remains visible until the next wake word. */
     private val _partialTranscript = MutableStateFlow("")
@@ -94,6 +103,14 @@ class NativeSovereignVoiceEngine(context: Context) {
     /** The latest finalized spoken command, with the wake phrase removed. */
     private val _latestCommand = MutableStateFlow("")
     val latestCommand: StateFlow<String> = _latestCommand.asStateFlow()
+
+    /** Latest completed hearing caption. Captions are never sent to the command event stream. */
+    private val _finalTranscript = MutableStateFlow("")
+    val finalTranscript: StateFlow<String> = _finalTranscript.asStateFlow()
+
+    /** Event stream so repeated identical phrases can still appear as separate captions. */
+    private val _captionEvents = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    val captionEvents: SharedFlow<String> = _captionEvents.asSharedFlow()
 
     /** Event stream for command routers. Keep actions behind a permission/confirmation policy. */
     private val _commands = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -145,8 +162,17 @@ class NativeSovereignVoiceEngine(context: Context) {
         }
     }
 
+    /** Start the owner-verified wake-word command mode. */
+    suspend fun start() = startWithMode(ListeningMode.WAKE_WORD_COMMANDS)
+
+    /** Start continuous local captions until pause/close; captions are not executable commands. */
+    suspend fun startCaptions() = startWithMode(ListeningMode.LIVE_CAPTIONS)
+
     /** Load model weights and start microphone capture. Must be called while the UI is visible. */
-    suspend fun start() = lifecycleMutex.withLock {
+    suspend fun resume() = startWithMode(null)
+
+    private suspend fun startWithMode(mode: ListeningMode?) = lifecycleMutex.withLock {
+        if (mode != null) _listeningMode.value = mode
         check(!closed) { "Voice engine has been closed" }
         if (captureJob?.isActive == true) return@withLock
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -174,20 +200,32 @@ class NativeSovereignVoiceEngine(context: Context) {
         )
         require(minBytes > 0) { "AudioRecord does not support 16 kHz mono PCM on this device" }
 
-        val recorder = AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .build()
+        if (!MicrophoneCaptureArbiter.tryAcquire(this)) {
+            throw IllegalStateException(
+                "The JARVIS microphone is already in use by another audio feature. Pause hands-free listening or acoustic capture, then retry."
             )
-            .setBufferSizeInBytes(max(minBytes * 2, READ_BUFFER_SAMPLES * BYTES_PER_SAMPLE * 4))
-            .build()
+        }
+
+        val recorder = try {
+            AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(SAMPLE_RATE)
+                        .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .build()
+                )
+                .setBufferSizeInBytes(max(minBytes * 2, READ_BUFFER_SAMPLES * BYTES_PER_SAMPLE * 4))
+                .build()
+        } catch (t: Throwable) {
+            MicrophoneCaptureArbiter.release(this)
+            throw t
+        }
 
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             recorder.release()
+            MicrophoneCaptureArbiter.release(this)
             throw IllegalStateException("AudioRecord failed to initialize")
         }
 
@@ -195,6 +233,7 @@ class NativeSovereignVoiceEngine(context: Context) {
             recorder.startRecording()
         } catch (t: Throwable) {
             recorder.release()
+            MicrophoneCaptureArbiter.release(this)
             throw t
         }
 
@@ -205,17 +244,16 @@ class NativeSovereignVoiceEngine(context: Context) {
     /** Immediately trigger streaming ASR (push-to-talk) without requiring the 'Hey Jarvis' keyword. */
     fun forceWake() {
         scope.launch {
-            lifecycleMutex.withLock {
-                if (closed) return@withLock
-                if (audioRecord == null) {
-                    try {
-                        start()
-                    } catch (t: Throwable) {
-                        _error.value = t.message
-                        return@withLock
-                    }
+            try {
+                // Do not call start() while holding lifecycleMutex: start() also takes that mutex.
+                if (audioRecord == null) start()
+                lifecycleMutex.withLock {
+                    if (closed || audioRecord == null) return@withLock
+                    _listeningMode.value = ListeningMode.WAKE_WORD_COMMANDS
+                    activateAsrFromPreRoll()
                 }
-                activateAsrFromPreRoll()
+            } catch (t: Throwable) {
+                _error.value = t.message ?: t.javaClass.simpleName
             }
         }
     }
@@ -227,8 +265,23 @@ class NativeSovereignVoiceEngine(context: Context) {
         _state.value = State.IDLE
     }
 
-    /** Reacquires the microphone after TTS, a call in this app, or another audio component finishes. */
-    suspend fun resume() = start()
+
+    /**
+     * Disposal-safe shutdown for Compose/service lifecycles. The closure runs on the
+     * engine-owned scope, so a caller's UI/service scope can be cancelled independently.
+     */
+    fun closeAsync(onClosed: (() -> Unit)? = null) {
+        // Use a separate scope because close() cancels the engine scope as its final step.
+        val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        shutdownScope.launch {
+            try {
+                close()
+            } finally {
+                runCatching { onClosed?.invoke() }
+                shutdownScope.cancel()
+            }
+        }
+    }
 
     /** Stops capture and releases all native model handles. Safe to call more than once. */
     suspend fun close() = lifecycleMutex.withLock {
@@ -266,6 +319,7 @@ class NativeSovereignVoiceEngine(context: Context) {
             recorder?.release()
         } catch (_: Throwable) {
         }
+        MicrophoneCaptureArbiter.release(this)
     }
 
     private fun loadModels() {
@@ -410,6 +464,7 @@ class NativeSovereignVoiceEngine(context: Context) {
                 }
                 runCatching { recorder.release() }
             }
+            MicrophoneCaptureArbiter.release(this)
         }
     }
 
@@ -436,6 +491,32 @@ class NativeSovereignVoiceEngine(context: Context) {
             (20.0 * log10(rms) + 90.0).toFloat().coerceIn(20f, 105f)
         } else 20.0f
         _audioDb.value = db
+
+        if (_listeningMode.value == ListeningMode.LIVE_CAPTIONS) {
+            // Hearing mode is user-started and never emits command events. Keep a small
+            // rolling pre-buffer, and only start the larger ASR stream after VAD detects
+            // speech. Replaying the buffer avoids clipping the low-volume start of a phrase.
+            if (!awake) {
+                preRoll.addLast(samples.copyOf())
+                while (preRoll.size > PRE_ROLL_FRAMES) preRoll.removeFirst()
+                if (!vadSpeaking) return
+
+                asrStream?.release()
+                asrStream = recognizer?.createStream() ?: return
+                awake = true
+                _partialTranscript.value = ""
+                _state.value = State.SPEECH_DETECTED
+                preRoll.forEach { bufferedFrame ->
+                    processAsrFrame(bufferedFrame, allowEndpoint = false)
+                }
+                preRoll.clear()
+            } else {
+                // Continue passing silence while an utterance is open so endpoint detection
+                // can finalize it after a natural pause.
+                processAsrFrame(samples, allowEndpoint = true)
+            }
+            return
+        }
 
         if (!awake) {
             preRoll.addLast(samples.copyOf())
@@ -493,16 +574,34 @@ class NativeSovereignVoiceEngine(context: Context) {
     }
 
     private fun finishUtterance() {
-        val fullText = recognizer?.getResult(asrStream ?: return)?.text?.trim().orEmpty()
+        val stream = asrStream ?: return
+        val decodedText = recognizer?.getResult(stream)?.text?.trim().orEmpty()
+        stream.release()
+        asrStream = null
         _state.value = State.UTTERANCE_COMPLETE
+
+        if (_listeningMode.value == ListeningMode.LIVE_CAPTIONS) {
+            val caption = phraseCorrections.apply(decodedText)
+            _partialTranscript.value = ""
+            if (caption.isNotBlank()) {
+                _finalTranscript.value = caption
+                _captionEvents.tryEmit(caption)
+                _state.value = State.UTTERANCE_COMPLETE
+            } else {
+                _state.value = State.IDLE
+            }
+            awake = false
+            preRoll.clear()
+            return
+        }
+
+        val fullText = phraseCorrections.apply(decodedText)
         _partialTranscript.value = fullText
         val command = stripWakeWord(fullText)
         if (command.isNotBlank()) {
             _latestCommand.value = command
             _commands.tryEmit(command)
         }
-        asrStream?.release()
-        asrStream = null
         awake = false
         preRoll.clear()
         keywordStream?.let { keywordSpotter?.reset(it) }
@@ -514,6 +613,15 @@ class NativeSovereignVoiceEngine(context: Context) {
             }
         }
     }
+
+    fun savePhraseCorrection(original: String, corrected: String): Boolean =
+        phraseCorrections.save(original, corrected)
+
+    fun removePhraseCorrection(original: String) =
+        phraseCorrections.remove(original)
+
+    /** Returns the local, user-authored correction pairs for the hearing companion settings UI. */
+    fun phraseCorrections(): Map<String, String> = phraseCorrections.all()
 
     private fun resetUtteranceState() {
         awake = false

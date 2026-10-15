@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mindfortress.app.ai.AmbientAcousticSentinel
 import com.mindfortress.app.ai.AcousticEnvironment
+import com.mindfortress.app.ai.ForegroundVoiceSession
+import com.mindfortress.app.ai.HandsFreeVoiceService
 import com.mindfortress.app.ai.LocalCompanionEngine
 import com.mindfortress.app.ai.NativeSovereignVoiceEngine
 import com.mindfortress.app.data.PreferencesManager
@@ -54,10 +56,12 @@ import java.util.*
 fun JarvisMainHudScreen(
     onNavigateToGym: () -> Unit = {},
     onNavigateToShieldRules: () -> Unit = {},
-    onNavigateToPurification: () -> Unit = {}
+    onNavigateToPurification: () -> Unit = {},
+    onNavigateToHearing: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { PreferencesManager.getInstance(context) }
+    val foregroundVoiceSessionToken = remember { ForegroundVoiceSession.claimUiSession() }
     val companionEngine = remember { LocalCompanionEngine(context) }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -141,8 +145,13 @@ fun JarvisMainHudScreen(
         }
     }
 
-    // 1. Preload Sherpa-ONNX Zipformer weights in background coroutine on launch
-    LaunchedEffect(Unit) {
+    // The foreground screen temporarily owns capture. Stop the background listener before
+    // starting another AudioRecord so Android audio input is never opened twice by JARVIS.
+    LaunchedEffect(voiceEngine) {
+        if (prefs.isHandsFreeVoiceActive) {
+            HandsFreeVoiceService.stop(context)
+            delay(450)
+        }
         voiceEngine.preloadModels()
         val hasMic = androidx.core.content.ContextCompat.checkSelfPermission(
             context,
@@ -150,6 +159,7 @@ fun JarvisMainHudScreen(
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (hasMic) {
             runCatching { voiceEngine.start() }
+                .onFailure { executionError = it.message ?: "Microphone could not be opened." }
         }
     }
 
@@ -190,12 +200,17 @@ fun JarvisMainHudScreen(
             android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (hasMic && prefs.isAcousticRadarActive) {
-            ambientSentinel.startSentinel()
+            // Ambient telemetry reuses the voice engine's level flow; only hardware sensors
+            // are registered here, so the sentinel does not open a competing AudioRecord.
+            ambientSentinel.startSensorMonitoring()
         }
         onDispose {
             ambientSentinel.stopSentinel()
-            scope.launch {
-                runCatching { voiceEngine.close() }
+            voiceEngine.closeAsync {
+                val ownsHandover = ForegroundVoiceSession.releaseUiSession(foregroundVoiceSessionToken)
+                if (ownsHandover && prefs.isHandsFreeVoiceActive) {
+                    HandsFreeVoiceService.start(context)
+                }
             }
         }
     }
@@ -302,10 +317,25 @@ fun JarvisMainHudScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Sovereign On-Device Status Banner (100% Autonomous, Offline-Ready)
-                SovereignOnDeviceBanner(
-                    modifier = Modifier.tactilePress(pressedScale = 0.98f) { showUplinkDialog = true }
-                )
+                // Quick access to the caption tool without adding a sixth bottom-nav item.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SovereignOnDeviceBanner(
+                            modifier = Modifier.tactilePress(pressedScale = 0.98f) { showUplinkDialog = true }
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onNavigateToHearing,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        border = BorderStroke(1.dp, ArcReactorCyan.copy(alpha = 0.7f))
+                    ) {
+                        Text("🦻 Hear", fontSize = 11.sp, color = ArcReactorCyan)
+                    }
+                }
             }
         }
     ) { padding ->

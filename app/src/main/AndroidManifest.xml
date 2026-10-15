@@ -93,6 +93,17 @@
             android:name=".service.JarvisFloatingOverlayService"
             android:exported="false" />
 
+        <!-- Opt-in notification reader: enabled only by the user in Android Notification access settings. -->
+        <service
+            android:name=".service.JarvisNotificationListenerService"
+            android:label="JARVIS notification reader"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Boot receiver to keep shield and guardian persistent from phone start -->
         <receiver
             android:name=".service.BootReceiver"
@@ -104,6 +115,11 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+
+        <!-- Locally scheduled, user-requested reminders -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
 
         <!-- Focus Unlock Receiver to automatically deactivate shields when focus session expires -->
         <receiver

@@ -91,4 +91,7 @@ dependencies {
 
   // On-Device Sherpa-ONNX Neural Speech Recognition & Silero VAD
   implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8")
+
+  // Optional, user-imported on-device LLM inference (LiteRT-LM).
+  implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
 }
