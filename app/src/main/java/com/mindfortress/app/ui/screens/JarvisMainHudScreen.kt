@@ -43,6 +43,7 @@ import com.mindfortress.app.ai.DeviceActionType
 import com.mindfortress.app.ai.PermissionFirstActionBroker
 import com.mindfortress.app.data.PreferencesManager
 import com.mindfortress.app.service.AppBlockerAccessibilityService
+import com.mindfortress.app.service.JarvisNotificationListenerService
 import com.mindfortress.app.service.JarvisFloatingOverlayService
 import com.mindfortress.app.service.MindShieldVpnService
 import com.mindfortress.app.theme.*
@@ -507,7 +508,57 @@ fun JarvisMainHudScreen(
                 }
             }
 
-            // 1. Centerpiece: Arc Reactor Core
+            // 1. Explicit user-controlled read-only phone access.
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = CyberCardSurface,
+                    border = BorderStroke(1.dp, CyberBorderGlow)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "PHONE ACCESS",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = ArcReactorCyan
+                        )
+                        Text(
+                            "Enable these in Android settings to let JARVIS read notification previews or visible screen text. Content is held in memory only and is not uploaded.",
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            color = NeutralTextMuted
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    JarvisNotificationListenerService.openNotificationAccessSettings(context)
+                                }
+                            ) {
+                                Text("NOTIFICATION ACCESS", fontSize = 9.sp)
+                            }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    AppBlockerAccessibilityService.openAccessibilitySettings(context)
+                                }
+                            ) {
+                                Text("SCREEN READING ACCESS", fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Centerpiece: Arc Reactor Core
             item {
                 Box(
                     modifier = Modifier
