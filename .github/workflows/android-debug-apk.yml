@@ -2,7 +2,7 @@ name: Android debug APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/permission-first-action-broker']
   pull_request:
     branches: [main]
   workflow_dispatch:
