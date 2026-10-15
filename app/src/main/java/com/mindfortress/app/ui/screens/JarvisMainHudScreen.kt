@@ -245,17 +245,8 @@ fun JarvisMainHudScreen(
         }
     }
 
-    // 1. Preload Sherpa-ONNX Zipformer weights in background coroutine on launch
-    LaunchedEffect(Unit) {
-        voiceEngine.preloadModels()
-        val hasMic = androidx.core.content.ContextCompat.checkSelfPermission(
-            context,
-            android.Manifest.permission.RECORD_AUDIO
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        if (hasMic) {
-            runCatching { voiceEngine.start() }
-        }
-    }
+    // Heavy speech models and microphone capture are deliberately lazy-loaded.
+    // Opening the HUD stays lightweight; models load only after an explicit voice action.
 
     // 2. Feed live mic decibels directly into the Ambient Sentinel & HUD telemetry
     LaunchedEffect(voiceAudioDb) {
